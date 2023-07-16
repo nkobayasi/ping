@@ -105,14 +105,14 @@ class EchoRequest(IcmpPacket):
     @property
     @memoized
     def header(self):
-        header = struct.pack(IcmpPacket.HEADER_FORMAT, IcmpType.ECHO_REQUEST, 0, 0, self.id, self.seq)
+        header = struct.pack(self.HEADER_FORMAT, IcmpType.ECHO_REQUEST, 0, 0, self.id, self.seq)
         real_checksum = checksum(header + self.payload)
-        return struct.pack(IcmpPacket.HEADER_FORMAT, IcmpType.ECHO_REQUEST, 0, socket.htons(real_checksum), self.id, self.seq)
+        return struct.pack(self.HEADER_FORMAT, IcmpType.ECHO_REQUEST, 0, socket.htons(real_checksum), self.id, self.seq)
     
     @property
     @memoized
     def payload(self):
-        return struct.pack(IcmpPacket.TIME_FORMAT, time.time()) + b'Q' * (self.size - struct.calcsize(IcmpPacket.TIME_FORMAT))
+        return struct.pack(self.TIME_FORMAT, time.time()) + b'Q' * (self.size - struct.calcsize(self.TIME_FORMAT))
     
     @property
     @memoized
@@ -136,17 +136,17 @@ class EchoReply(IcmpPacket):
     @memoized
     def header(self):
         header_keys = ('type', 'code', 'checksum', 'id', 'seq')
-        return dict(zip(header_keys, struct.unpack(IcmpPacket.HEADER_FORMAT, self.raw[0:struct.calcsize(IcmpPacket.HEADER_FORMAT)])))
+        return dict(zip(header_keys, struct.unpack(self.HEADER_FORMAT, self.raw[0:struct.calcsize(self.HEADER_FORMAT)])))
     
     @property
     @memoized
     def payload(self):
-        return self.raw[struct.calcsize(IcmpPacket.HEADER_FORMAT):]
+        return self.raw[struct.calcsize(self.HEADER_FORMAT):]
     
     @property
     @memoized
     def epoch(self):
-        return struct.unpack(IcmpPacket.TIME_FORMAT, self.payload[0:struct.calcsize(IcmpPacket.TIME_FORMAT)])[0]
+        return struct.unpack(self.TIME_FORMAT, self.payload[0:struct.calcsize(self.TIME_FORMAT)])[0]
 
 class Ping(object):
     def __init__(self, ttl=None):
