@@ -49,27 +49,23 @@ class Ip(object):
         self.raw = raw
         return self
     
-    @memoized_property
+    @memoized
+    @property
     def header(self):
         header_keys = ('version', 'tos', 'len', 'id', 'flags', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr')
         return dict(zip(header_keys, struct.unpack(self.HEADER_FORMAT, self.raw[0:struct.calcsize(self.HEADER_FORMAT)])))
     
-    @memoized_property
+    @memoized
+    @property
     def payload(self):
         return self.raw[struct.calcsize(self.HEADER_FORMAT):]
 
-class Icmp(object):
+class IcmpPacket(object):
     HEADER_FORMAT = "!BBHHH"
     TIME_FORMAT = "!d"
     
     def __init__(self):
-        if hasattr(threading, 'get_native_id'):
-            thread_id = threading.get_native_id()
-        else:
-            thread_id = threading.currentThread().ident
-        process_id = os.getpid()
-        self.id = zlib.crc32("{}{}".format(process_id, thread_id).encode("ascii")) & 0xffff
-        self.seq = 0
+        self._seq = 0
     
     @classmethod
     def factory(cls, raw):
@@ -89,37 +85,65 @@ class IcmpType(enum.IntEnum):
     TIMESTAMP = 13
     TIMESTAMP_REPLY = 14
 
-class EchoRequest(Icmp):
+class EchoRequest(IcmpPacket):
     def __init__(self, size=56):
         super().__init__()
         self.size = size
         self.epoch = time.time()
+
+    @memoized
+    @property
+    def id(self):
+        if hasattr(threading, 'get_native_id'):
+            thread_id = threading.get_native_id()
+        else:
+            thread_id = threading.currentThread().ident
+        process_id = os.getpid()
+        return zlib.crc32("{}{}".format(process_id, thread_id).encode("ascii")) & 0xffff
+
+    @property
+    def seq(self):
+        return self._seq
     
-    @memoized_property
+    @memoized
+    @property
     def header(self):
         header = struct.pack(Icmp.HEADER_FORMAT, IcmpType.ECHO_REQUEST, 0, 0, self.id, self.seq)
         real_checksum = checksum(header + self.payload)
         return struct.pack(Icmp.HEADER_FORMAT, IcmpType.ECHO_REQUEST, 0, socket.htons(real_checksum), self.id, self.seq)
     
-    @memoized_property
+    @memoized
+    @property
     def payload(self):
         return struct.pack(Icmp.TIME_FORMAT, time.time()) + b'Q' * (self.size - struct.calcsize(Icmp.TIME_FORMAT))
     
-    @memoized_property
+    @memoized
+    @property
     def packet(self):
         return self.header + self.payload
 
-class EchoReply(Icmp):
-    @memoized_property
+class EchoReply(IcmpPacket):
+    @property
+    def id(self):
+        return self.header['id']
+
+    @property
+    def seq(self):
+        return self.header['seq']
+
+    @memoized
+    @property
     def header(self):
         header_keys = ('type', 'code', 'checksum', 'id', 'seq')
         return dict(zip(header_keys, struct.unpack(Icmp.HEADER_FORMAT, self.raw[0:struct.calcsize(Icmp.HEADER_FORMAT)])))
     
-    @memoized_property
+    @memoized
+    @property
     def payload(self):
         return self.raw[struct.calcsize(Icmp.HEADER_FORMAT):]
     
-    @memoized_property
+    @memoized
+    @property
     def epoch(self):
         return struct.unpack(Icmp.TIME_FORMAT, self.payload[0:struct.calcsize(Icmp.TIME_FORMAT)])[0]
 
@@ -154,9 +178,7 @@ class Ping(object):
         print('protocol=', ip.header['protocol'])
         print('type=', echo_reply.header['type'])
         print('id=', echo_reply.id)
-        print('id=', echo_reply.header['id'])
         print('seq=', echo_reply.seq)
-        print('seq=', echo_reply.header['seq'])
         print('request_time=', echo_request.epoch, time.ctime(echo_request.epoch))
         print('reply_time=', echo_reply.epoch, time.ctime(echo_reply.epoch))
         print('time=', '{:.6f}'.format(echo_reply.epoch - echo_request.epoch))
