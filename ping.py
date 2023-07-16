@@ -46,14 +46,14 @@ class Ip(object):
         self.raw = raw
         return self
     
-    @memoized
     @property
+    @memoized
     def header(self):
         header_keys = ('version', 'tos', 'len', 'id', 'flags', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr')
         return dict(zip(header_keys, struct.unpack(self.HEADER_FORMAT, self.raw[0:struct.calcsize(self.HEADER_FORMAT)])))
     
-    @memoized
     @property
+    @memoized
     def payload(self):
         return self.raw[struct.calcsize(self.HEADER_FORMAT):]
 
@@ -88,8 +88,8 @@ class EchoRequest(IcmpPacket):
         self.size = size
         self.epoch = time.time()
 
-    @memoized
     @property
+    @memoized
     def id(self):
         if hasattr(threading, 'get_native_id'):
             thread_id = threading.get_native_id()
@@ -102,20 +102,20 @@ class EchoRequest(IcmpPacket):
     def seq(self):
         return self._seq
 
-    @memoized
     @property
+    @memoized
     def header(self):
         header = struct.pack(Icmp.HEADER_FORMAT, IcmpType.ECHO_REQUEST, 0, 0, self.id, self.seq)
         real_checksum = checksum(header + self.payload)
         return struct.pack(Icmp.HEADER_FORMAT, IcmpType.ECHO_REQUEST, 0, socket.htons(real_checksum), self.id, self.seq)
     
-    @memoized
     @property
+    @memoized
     def payload(self):
         return struct.pack(Icmp.TIME_FORMAT, time.time()) + b'Q' * (self.size - struct.calcsize(Icmp.TIME_FORMAT))
     
-    @memoized
     @property
+    @memoized
     def packet(self):
         return self.header + self.payload
 
@@ -132,19 +132,19 @@ class EchoReply(IcmpPacket):
     def type(self):
         return IcmpType(self.header['type'])
 
-    @memoized
     @property
+    @memoized
     def header(self):
         header_keys = ('type', 'code', 'checksum', 'id', 'seq')
         return dict(zip(header_keys, struct.unpack(Icmp.HEADER_FORMAT, self.raw[0:struct.calcsize(Icmp.HEADER_FORMAT)])))
     
-    @memoized
     @property
+    @memoized
     def payload(self):
         return self.raw[struct.calcsize(Icmp.HEADER_FORMAT):]
     
-    @memoized
     @property
+    @memoized
     def epoch(self):
         return struct.unpack(Icmp.TIME_FORMAT, self.payload[0:struct.calcsize(Icmp.TIME_FORMAT)])[0]
 
