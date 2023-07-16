@@ -51,8 +51,8 @@ class Ip(object):
     
     @memoized_property
     def header(self):
-        ip_header_keys = ('version', 'tos', 'len', 'id', 'flags', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr')
-        return dict(zip(ip_header_keys, struct.unpack(self.HEADER_FORMAT, self.raw[0:struct.calcsize(self.HEADER_FORMAT)])))
+        header_keys = ('version', 'tos', 'len', 'id', 'flags', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr')
+        return dict(zip(header_keys, struct.unpack(self.HEADER_FORMAT, self.raw[0:struct.calcsize(self.HEADER_FORMAT)])))
     
     @memoized_property
     def payload(self):
@@ -112,8 +112,8 @@ class EchoRequest(Icmp):
 class EchoReply(Icmp):
     @memoized_property
     def header(self):
-        icmp_header_keys = ('type', 'code', 'checksum', 'id', 'seq')
-        return dict(zip(icmp_header_keys, struct.unpack(Icmp.HEADER_FORMAT, self.raw[0:struct.calcsize(Icmp.HEADER_FORMAT)])))
+        header_keys = ('type', 'code', 'checksum', 'id', 'seq')
+        return dict(zip(header_keys, struct.unpack(Icmp.HEADER_FORMAT, self.raw[0:struct.calcsize(Icmp.HEADER_FORMAT)])))
     
     @memoized_property
     def payload(self):
@@ -143,22 +143,23 @@ class Ping(object):
             addr = socket.gethostbyname(addr)
         except socket.gaierror as e:
             raise HostUnknown(addr=addr) from e
+        print(addr)
         echo_request = EchoRequest()
         self.socket.sendto(echo_request.packet, (addr, 0))
         raw, addr = self.socket.recvfrom(1500)
         ip = Ip.factory(raw)
         echo_reply = EchoReply.factory(ip.payload)
         print(addr)
-        print(ip.header['ttl'])
-        print(ip.header['protocol'])
-        print(echo_reply.header['type'])
-        print(echo_reply.id)
-        print(echo_reply.header['id'])
-        print(echo_reply.seq)
-        print(echo_reply.header['seq'])
-        print(echo_request.epoch)
-        print(echo_reply.epoch)
-        print(echo_reply.epoch - echo_request.epoch)
+        print('ttl=', ip.header['ttl'])
+        print('protocol=', ip.header['protocol'])
+        print('type=', echo_reply.header['type'])
+        print('id=', echo_reply.id)
+        print('id=', echo_reply.header['id'])
+        print('seq=', echo_reply.seq)
+        print('seq=', echo_reply.header['seq'])
+        print('request_time=', echo_request.epoch, time.ctime(echo_request.epoch))
+        print('reply_time=', echo_reply.epoch, time.ctime(echo_reply.epoch))
+        print('time=', '{:.6f}'.format(echo_reply.epoch - echo_request.epoch))
     
 def ping(addr):
     ping = Ping()
