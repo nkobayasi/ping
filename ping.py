@@ -146,7 +146,7 @@ class EchoReply(IcmpPacket):
     @property
     @memoized
     def epoch(self):
-        return struct.unpack(Icmp.TIME_FORMAT, self.payload[0:struct.calcsize(IcmpPacket.TIME_FORMAT)])[0]
+        return struct.unpack(IcmpPacket.TIME_FORMAT, self.payload[0:struct.calcsize(IcmpPacket.TIME_FORMAT)])[0]
 
 class Ping(object):
     def __init__(self, ttl=None):
