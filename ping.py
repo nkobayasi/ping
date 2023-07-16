@@ -101,7 +101,7 @@ class EchoRequest(IcmpPacket):
     @property
     def seq(self):
         return self._seq
-    
+
     @memoized
     @property
     def header(self):
@@ -127,6 +127,10 @@ class EchoReply(IcmpPacket):
     @property
     def seq(self):
         return self.header['seq']
+
+    @property
+    def type(self):
+        return IcmpType(self.header['type'])
 
     @memoized
     @property
@@ -173,7 +177,7 @@ class Ping(object):
         print(addr)
         print('ttl=', ip.header['ttl'])
         print('protocol=', ip.header['protocol'])
-        print('type=', echo_reply.header['type'])
+        print('type=', echo_reply.type.name)
         print('id=', echo_reply.id)
         print('seq=', echo_reply.seq)
         print('request_time=', echo_request.epoch, time.ctime(echo_request.epoch))
