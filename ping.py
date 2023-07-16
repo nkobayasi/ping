@@ -40,9 +40,6 @@ class HostUnknown(PingError):
 class Ip(object):
     HEADER_FORMAT = "!BBHHHBBHII"
     
-    def __init__(self):
-        pass
-    
     @classmethod
     def factory(cls, raw):
         self = cls()
