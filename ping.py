@@ -96,7 +96,7 @@ class EchoRequest(IcmpPacket):
         else:
             thread_id = threading.currentThread().ident
         process_id = os.getpid()
-        return zlib.crc32("{}{}".format(process_id, thread_id).encode("ascii")) & 0xffff
+        return zlib.crc32("{}{}".format(process_id, thread_id).encode('ascii')) & 0xffff
 
     @property
     def seq(self):
