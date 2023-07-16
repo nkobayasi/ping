@@ -8,6 +8,7 @@ import struct
 import socket
 import time
 import threading
+import zlib
 
 def memoized(func):
     @wraps(func)
@@ -51,11 +52,11 @@ class Ip(object):
     @memoized_property
     def header(self):
         ip_header_keys = ('version', 'tos', 'len', 'id', 'flags', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr')
-        return dict(zip(ip_header_keys, struct.unpack(self.HEADER_FORMAT, self.raw[0:struct.calcsize(IP_HEADER_FORMAT)])))
+        return dict(zip(ip_header_keys, struct.unpack(self.HEADER_FORMAT, self.raw[0:struct.calcsize(self.HEADER_FORMAT)])))
     
     @memoized_property
     def payload(self):
-        return self.raw[struct.calcsize(IP_HEADER_FORMAT):]
+        return self.raw[struct.calcsize(self.HEADER_FORMAT):]
 
 class Icmp(object):
     HEADER_FORMAT = "!BBHHH"
@@ -89,9 +90,10 @@ class IcmpType(enum.IntEnum):
     TIMESTAMP_REPLY = 14
 
 class EchoRequest(Icmp):
-    def __init__(self, szie=56):
-        super().__init__(self)
+    def __init__(self, size=56):
+        super().__init__()
         self.size = size
+        self.epoch = time.time()
     
     @memoized_property
     def header(self):
@@ -118,12 +120,23 @@ class EchoReply(Icmp):
         return self.raw[struct.calcsize(Icmp.HEADER_FORMAT):]
     
     @memoized_property
-    def time(self):
-        return time.ctime(struct.unpack(Icmp.TIME_FORMAT, self.payload[0:struct.calcsize(Icmp.TIME_FORMAT)])[0])
+    def epoch(self):
+        return struct.unpack(Icmp.TIME_FORMAT, self.payload[0:struct.calcsize(Icmp.TIME_FORMAT)])[0]
 
 class Ping(object):
-    def __init__(self):
+    def __init__(self, ttl=None):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
+        if ttl:
+            try:  # IPPROTO_IP is for Windows and BSD Linux.
+                if self.socket.getsockopt(socket.IPPROTO_IP, socket.IP_TTL):
+                    self.socket.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
+            except OSError as err:
+                pass
+            try:
+                if self.socket.getsockopt(socket.SOL_IP, socket.IP_TTL):
+                    self.socket.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl)
+            except OSError as err:
+                pass
     
     def execute(self, addr):
         try:
@@ -135,9 +148,17 @@ class Ping(object):
         raw, addr = self.socket.recvfrom(1500)
         ip = Ip.factory(raw)
         echo_reply = EchoReply.factory(ip.payload)
+        print(addr)
+        print(ip.header['ttl'])
+        print(ip.header['protocol'])
         print(echo_reply.header['type'])
+        print(echo_reply.id)
         print(echo_reply.header['id'])
+        print(echo_reply.seq)
         print(echo_reply.header['seq'])
+        print(echo_request.epoch)
+        print(echo_reply.epoch)
+        print(echo_reply.epoch - echo_request.epoch)
     
 def ping(addr):
     ping = Ping()
@@ -145,6 +166,8 @@ def ping(addr):
 
 def main():
     ping('127.0.0.1')
+    ping('8.8.8.8')
+    ping('google.com')
 
 if __name__ == '__main__':
     main()
