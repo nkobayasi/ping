@@ -177,7 +177,7 @@ class Ping(object):
         print(addr)
         print('ttl=', ip.header['ttl'])
         print('protocol=', ip.header['protocol'])
-        print('type=', echo_reply.type.name)
+        print('type=', '{}({})'.format(echo_reply.type.name, echo_reply.type.value))
         print('id=', echo_reply.id)
         print('seq=', echo_reply.seq)
         print('request_time=', echo_request.epoch, time.ctime(echo_request.epoch))
