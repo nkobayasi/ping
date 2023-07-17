@@ -9,6 +9,7 @@ import socket
 import time
 import threading
 import zlib
+import ipaddress
 
 def memoized(func):
     @wraps(func)
@@ -37,7 +38,7 @@ class HostUnknown(PingError):
         self.message = message if self.addr is None else message + " (Host='{}')".format(self.addr)
         super().__init__(self.message)
 
-class Ip(object):
+class IpPacket(object):
     HEADER_FORMAT = "!BBHHHBBHII"
     
     @classmethod
@@ -148,6 +149,17 @@ class EchoReply(IcmpPacket):
     def epoch(self):
         return struct.unpack(self.TIME_FORMAT, self.payload[0:struct.calcsize(self.TIME_FORMAT)])[0]
 
+class PingResult(object):
+    def __init__(self):
+        pass
+
+    @classmethod
+    def factory(cls, echo_request, echo_reply):
+        self = cls()
+        self.addr = echo_reply.addr
+        self.roundtrip = echo_reply.epoch - echo_request.epoch
+        return self
+
 class Ping(object):
     def __init__(self, ttl=None):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
@@ -168,30 +180,35 @@ class Ping(object):
             addr = socket.gethostbyname(addr)
         except socket.gaierror as e:
             raise HostUnknown(addr=addr) from e
-        print(addr)
         echo_request = EchoRequest()
         self.socket.sendto(echo_request.packet, (addr, 0))
         raw, addr = self.socket.recvfrom(1500)
-        ip = Ip.factory(raw)
+        ip = IpPacket.factory(raw)
         echo_reply = EchoReply.factory(ip.payload)
-        print(addr)
-        print('ttl=', ip.header['ttl'])
-        print('protocol=', ip.header['protocol'])
-        print('type=', '{}({})'.format(echo_reply.type.name, echo_reply.type.value))
-        print('id=', echo_reply.id)
-        print('seq=', echo_reply.seq)
-        print('request_time=', echo_request.epoch, time.ctime(echo_request.epoch))
-        print('reply_time=', echo_reply.epoch, time.ctime(echo_reply.epoch))
-        print('time=', '{:.6f}'.format(echo_reply.epoch - echo_request.epoch))
+        return {
+            'addr': ipaddress.IPv4Address(ip.header['src_addr']),
+            'size': echo_request.size,
+            'roundtrip': (echo_reply.epoch - echo_request.epoch) * 1000.0, 
+            'ttl': ip.header['ttl']}
+
+class Pings(object):
+    pass
+
+class PingsStatic(object):
+    pass
     
-def ping(addr):
-    ping = Ping()
-    return ping.execute(addr)
+def ping(addr, times=1, interval=1.0, ttl=None):
+    results = []
+    for _ in range(times):
+        ping = Ping(ttl=ttl)
+        results.append(ping.execute(addr))
+        time.sleep(interval)
+    return results
 
 def main():
-    ping('127.0.0.1')
-    ping('8.8.8.8')
-    ping('google.com')
+    print(ping('127.0.0.1', 4))
+    print(ping('8.8.8.8'))
+    print(ping('google.com'))
 
 if __name__ == '__main__':
     main()
