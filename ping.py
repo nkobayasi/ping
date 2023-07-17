@@ -32,6 +32,29 @@ def checksum(value, bits=16):
     return ~result & ((1 << bits) - 1)
 
 class PingError(Exception): pass
+class TimeExceeded(PingError): pass
+
+class TimeToLiveExpired(TimeExceeded):
+    def __init__(self, message="Time exceeded: Time To Live expired.", ip_header=None, icmp_header=None):
+        self.ip_header = ip_header
+        self.icmp_header = icmp_header
+        self.message = message
+        super().__init__(self.message)
+
+class DestinationUnreachable(PingError):
+    def __init__(self, message="Destination unreachable.", ip_header=None, icmp_header=None):
+        self.ip_header = ip_header
+        self.icmp_header = icmp_header
+        self.message = message if self.ip_header is None else message + " (Host='{}')".format(self.ip_header.get("src_addr"))
+        super().__init__(self.message)
+
+class DestinationHostUnreachable(DestinationUnreachable):
+    def __init__(self, message="Destination unreachable: Host unreachable.", ip_header=None, icmp_header=None):
+        self.ip_header = ip_header
+        self.icmp_header = icmp_header
+        self.message = message if self.ip_header is None else message + " (Host='{}')".format(self.ip_header.get("src_addr"))
+        super().__init__(self.message)
+
 class HostUnknown(PingError):
     def __init__(self, message="Cannot resolve: Unknown host.", addr=None):
         self.addr = addr
@@ -62,9 +85,6 @@ class IcmpPacket(object):
     HEADER_FORMAT = "!BBHHH"
     TIME_FORMAT = "!d"
     
-    def __init__(self):
-        self._seq = 0
-    
     @classmethod
     def factory(cls, raw):
         self = cls()
@@ -83,9 +103,32 @@ class IcmpType(enum.IntEnum):
     TIMESTAMP = 13
     TIMESTAMP_REPLY = 14
 
+class IcmpTimeExceededCode(enum.IntEnum):
+    TTL_EXPIRED = 0
+    FRAGMENT_REASSEMBLY_TIME_EXCEEDED = 1
+
+class IcmpDestinationUnreachableCode(enum.IntEnum):
+    DESTINATION_NETWORK_UNREACHABLE = 0
+    DESTINATION_HOST_UNREACHABLE = 1
+    DESTINATION_PROTOCOL_UNREACHABLE = 2
+    DESTINATION_PORT_UNREACHABLE = 3
+    FRAGMENTATION_REQUIRED = 4
+    SOURCE_ROUTE_FAILED = 5
+    DESTINATION_NETWORK_UNKNOWN = 6
+    DESTINATION_HOST_UNKNOWN = 7
+    SOURCE_HOST_ISOLATED = 8
+    NETWORK_ADMINISTRATIVELY_PROHIBITED = 9
+    HOST_ADMINISTRATIVELY_PROHIBITED = 10
+    NETWORK_UNREACHABLE_FOR_TOS = 11
+    HOST_UNREACHABLE_FOR_TOS = 12
+    COMMUNICATION_ADMINISTRATIVELY_PROHIBITED = 13
+    HOST_PRECEDENCE_VIOLATION = 14
+    PRECEDENCE_CUTOFF_IN_EFFECT = 15
+
 class EchoRequest(IcmpPacket):
-    def __init__(self, size=56):
+    def __init__(self, seq=0, size=56):
         super().__init__()
+        self._seq = seq
         self.size = size
         self.epoch = time.time()
 
@@ -113,7 +156,7 @@ class EchoRequest(IcmpPacket):
     @property
     @memoized
     def payload(self):
-        return struct.pack(self.TIME_FORMAT, time.time()) + b'Q' * (self.size - struct.calcsize(self.TIME_FORMAT))
+        return struct.pack(self.TIME_FORMAT, self.epoch) + b'Q' * (self.size - struct.calcsize(self.TIME_FORMAT))
     
     @property
     @memoized
@@ -161,10 +204,11 @@ class PingResult(object):
         return self
 
 class Ping(object):
-    def __init__(self, ttl=None):
+    def __init__(self, seq=0, ttl=None):
+        self.seq = seq
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
         if ttl:
-            try:  # IPPROTO_IP is for Windows and BSD Linux.
+            try:
                 if self.socket.getsockopt(socket.IPPROTO_IP, socket.IP_TTL):
                     self.socket.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
             except OSError as err:
@@ -180,16 +224,33 @@ class Ping(object):
             addr = socket.gethostbyname(addr)
         except socket.gaierror as e:
             raise HostUnknown(addr=addr) from e
-        echo_request = EchoRequest()
+        echo_request = EchoRequest(seq=self.seq)
         self.socket.sendto(echo_request.packet, (addr, 0))
-        raw, addr = self.socket.recvfrom(1500)
-        ip = IpPacket.factory(raw)
-        echo_reply = EchoReply.factory(ip.payload)
-        return {
-            'addr': ipaddress.IPv4Address(ip.header['src_addr']),
-            'size': echo_request.size,
-            'roundtrip': (echo_reply.epoch - echo_request.epoch) * 1000.0, 
-            'ttl': ip.header['ttl']}
+        while True:
+            raw, addr = self.socket.recvfrom(1500)
+            ip = IpPacket.factory(raw)
+            echo_reply = EchoReply.factory(ip.payload)
+            if echo_reply.header['type'] == IcmpType.TIME_EXCEEDED:
+                if echo_reply.header['code'] == IcmpTimeExceededCode.TTL_EXPIRED:
+                    raise TimeToLiveExpired(ip_header=ip.header, icmp_header=echo_reply.header)
+                raise TimeExceeded()
+            if echo_reply.header['type'] == IcmpType.DESTINATION_UNREACHABLE:
+                if echo_reply.header['code'] == IcmpDestinationUnreachableCode.DESTINATION_HOST_UNREACHABLE:
+                    raise DestinationHostUnreachable(ip_header=ip.header, icmp_header=echo_reply.header)
+                raise DestinationUnreachable(ip_header=ip.header, icmp_header=echo_reply.header)
+            if echo_reply.header['id']:
+                if echo_reply.header['type'] == IcmpType.ECHO_REQUEST:
+                    continue
+                if echo_reply.id != echo_request.id:
+                    continue
+                if echo_reply.seq != echo_request.seq:
+                    continue
+            if echo_reply.header['type'] == IcmpType.ECHO_REPLY:
+                return {
+                    'addr': ipaddress.IPv4Address(ip.header['src_addr']),
+                    'size': echo_request.size,
+                    'roundtrip': (echo_reply.epoch - echo_request.epoch) * 1000.0, 
+                    'ttl': ip.header['ttl']}
 
 class Pings(object):
     pass
@@ -199,8 +260,8 @@ class PingsStatic(object):
     
 def ping(addr, times=1, interval=1.0, ttl=None):
     results = []
-    for _ in range(times):
-        ping = Ping(ttl=ttl)
+    for seq in range(times):
+        ping = Ping(seq=seq, ttl=ttl)
         results.append(ping.execute(addr))
         time.sleep(interval)
     return results
