@@ -252,10 +252,13 @@ class PingResult(object):
         return self
 
 class Ping(object):
-    def __init__(self, seq=0, ttl=None, timeout=10):
+    def __init__(self, ttl=None, timeout=10):
         self.timeout = timeout
-        self.seq = seq
+        self.seq = 0
         self.ttl = ttl
+    
+    def execute(self, addr):
+        self.seq += 1
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
         if self.ttl:
             try:
@@ -268,8 +271,6 @@ class Ping(object):
                     self.socket.setsockopt(socket.SOL_IP, socket.IP_TTL, self.ttl)
             except OSError as err:
                 pass
-    
-    def execute(self, addr):
         try:
             addr = socket.gethostbyname(addr)
         except socket.gaierror as e:
@@ -321,8 +322,8 @@ class PingsStatic(object):
     
 def ping(addr, times=1, interval=1.0, ttl=None):
     results = []
-    for seq in range(times):
-        ping = Ping(seq=seq, ttl=ttl)
+    ping = Ping(ttl=ttl)
+    for _ in range(times):
         results.append(ping.execute(addr))
         time.sleep(interval)
     return results
