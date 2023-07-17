@@ -244,11 +244,13 @@ class PingResult(object):
         pass
 
     @classmethod
-    def factory(cls, ip):
+    def factory(cls, ip: IpPacket) -> PingResult:
         echo_reply = EchoReply.factory(ip.payload)
         self = cls()
-        self.addr = ipaddress.ip_address(ip.header['src_addr'])
+        self.addr = ip.src_addr
         self.roundtrip = (time.time() - echo_reply.epoch) * 1000.0
+        self.size = ip.payload_size
+        self.ttl = ip.ttl
         return self
 
 class Ping(object):
