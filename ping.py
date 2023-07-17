@@ -257,15 +257,15 @@ class Ping(object):
         self.seq = seq
         self.ttl = ttl
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
-        if ttl:
+        if self.ttl:
             try:
                 if self.socket.getsockopt(socket.IPPROTO_IP, socket.IP_TTL):
-                    self.socket.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
+                    self.socket.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, self.ttl)
             except OSError as err:
                 pass
             try:
                 if self.socket.getsockopt(socket.SOL_IP, socket.IP_TTL):
-                    self.socket.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl)
+                    self.socket.setsockopt(socket.SOL_IP, socket.IP_TTL, self.ttl)
             except OSError as err:
                 pass
     
