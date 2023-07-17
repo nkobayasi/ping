@@ -4,6 +4,7 @@
 from functools import wraps
 import enum
 import os
+import select
 import struct
 import socket
 import time
@@ -34,6 +35,12 @@ def checksum(value, bits=16):
 class PingError(Exception): pass
 class TimeExceeded(PingError): pass
 
+class PingTimeout(PingError):
+    def __init__(self, message="Request timeout for ICMP packet.", timeout=None):
+        self.timeout = timeout
+        self.message = message if self.timeout is None else message + " (Timeout={}s)".format(self.timeout)
+        super().__init__(self.message)
+
 class TimeToLiveExpired(TimeExceeded):
     def __init__(self, message="Time exceeded: Time To Live expired.", ip_header=None, icmp_header=None):
         self.ip_header = ip_header
@@ -45,14 +52,14 @@ class DestinationUnreachable(PingError):
     def __init__(self, message="Destination unreachable.", ip_header=None, icmp_header=None):
         self.ip_header = ip_header
         self.icmp_header = icmp_header
-        self.message = message if self.ip_header is None else message + " (Host='{}')".format(self.ip_header.get("src_addr"))
+        self.message = message if self.ip_header is None else message + " (Host='{}')".format(ipaddress.ip_address(self.ip_header.get("src_addr")))
         super().__init__(self.message)
 
 class DestinationHostUnreachable(DestinationUnreachable):
     def __init__(self, message="Destination unreachable: Host unreachable.", ip_header=None, icmp_header=None):
         self.ip_header = ip_header
         self.icmp_header = icmp_header
-        self.message = message if self.ip_header is None else message + " (Host='{}')".format(self.ip_header.get("src_addr"))
+        self.message = message if self.ip_header is None else message + " (Host='{}')".format(ipaddress.ip_address(self.ip_header.get("src_addr")))
         super().__init__(self.message)
 
 class HostUnknown(PingError):
@@ -69,6 +76,22 @@ class IpPacket(object):
         self = cls()
         self.raw = raw
         return self
+    
+    @property
+    def src_addr(self):
+        return ipaddress.ip_address(self.header['src_addr'])
+
+    @property
+    def dest_addr(self):
+        return ipaddress.ip_address(self.header['dest_addr'])
+    
+    @property
+    def payload_size(self):
+        return self.header['len'] - struct.calcsize(self.HEADER_FORMAT)
+
+    @property
+    def ttl(self):
+        return self.header['ttl']
     
     @property
     @memoized
@@ -160,7 +183,7 @@ class EchoRequest(IcmpPacket):
     
     @property
     @memoized
-    def packet(self):
+    def raw_packet(self):
         return self.header + self.payload
 
 class EchoReply(IcmpPacket):
@@ -197,15 +220,18 @@ class PingResult(object):
         pass
 
     @classmethod
-    def factory(cls, echo_request, echo_reply):
+    def factory(cls, ip):
+        echo_reply = EchoReply.factory(ip.payload)
         self = cls()
-        self.addr = echo_reply.addr
-        self.roundtrip = echo_reply.epoch - echo_request.epoch
+        self.addr = ipaddress.ip_address(ip.header['src_addr'])
+        self.roundtrip = (time.time() - echo_reply.epoch) * 1000.0
         return self
 
 class Ping(object):
-    def __init__(self, seq=0, ttl=None):
+    def __init__(self, seq=0, ttl=None, timeout=10):
+        self.timeout = timeout
         self.seq = seq
+        self.ttl = ttl
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
         if ttl:
             try:
@@ -225,10 +251,17 @@ class Ping(object):
         except socket.gaierror as e:
             raise HostUnknown(addr=addr) from e
         echo_request = EchoRequest(seq=self.seq)
-        self.socket.sendto(echo_request.packet, (addr, 0))
+        self.socket.sendto(echo_request.raw_packet, (addr, 0))
+        timeout = time.time() +  self.timeout
         while True:
-            raw, addr = self.socket.recvfrom(1500)
-            ip = IpPacket.factory(raw)
+            select_timeout = timeout - time.time()
+            if select_timeout < 0:
+                select_timeout = 0
+            selected = select.select([self.socket, ], [], [], select_timeout)
+            if selected[0] == []:
+                raise PingTimeout(timeout=self.timeout)
+            raw_packet, addr = self.socket.recvfrom(1500)
+            ip = IpPacket.factory(raw_packet)
             echo_reply = EchoReply.factory(ip.payload)
             if echo_reply.header['type'] == IcmpType.TIME_EXCEEDED:
                 if echo_reply.header['code'] == IcmpTimeExceededCode.TTL_EXPIRED:
@@ -247,9 +280,9 @@ class Ping(object):
                     continue
             if echo_reply.header['type'] == IcmpType.ECHO_REPLY:
                 return {
-                    'addr': ipaddress.IPv4Address(ip.header['src_addr']),
-                    'size': echo_request.size,
-                    'roundtrip': (echo_reply.epoch - echo_request.epoch) * 1000.0, 
+                    'addr': ipaddress.ip_address(ip.header['src_addr']),
+                    'size': ip.payload_size,
+                    'roundtrip': (time.time() - echo_reply.epoch) * 1000.0, 
                     'ttl': ip.header['ttl']}
 
 class Pings(object):
@@ -268,7 +301,7 @@ def ping(addr, times=1, interval=1.0, ttl=None):
 
 def main():
     print(ping('127.0.0.1', 4))
-    print(ping('8.8.8.8'))
+    print(ping('8.8.8.8', 4))
     print(ping('google.com'))
 
 if __name__ == '__main__':
