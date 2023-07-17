@@ -36,17 +36,17 @@ def checksum(value, bits=16):
 
 class StderrHandler(logging.StreamHandler):
     def __init__(self):
-        logging.StreamHandler.__init__(self)
+        super().__init__()
         self.setFormatter(logging.Formatter('[%(process)d] %(message)s'))
 
 class SyslogHandler(logging.handlers.SysLogHandler):
     def __init__(self, filename):
-        logging.handlers.SysLogHandler.__init__(self)
+        super().__init__()
         self.setFormatter(logging.Formatter('%(levelname)s: %(name)s.%(funcName)s(): %(message)s'))
 
 class FileHandler(logging.handlers.WatchedFileHandler):
     def __init__(self, filename):
-        logging.handlers.WatchedFileHandler.__init__(self, filename, encoding='utf-8')
+        super().__init__(filename, encoding='utf-8')
         self.setFormatter(logging.Formatter('[%(asctime)s] [%(process)d] %(levelname)s: %(name)s.%(funcName)s(): %(message)s'))
 
 logger = logging.getLogger('ping').getChild(__name__)
