@@ -11,6 +11,8 @@ import time
 import threading
 import zlib
 import ipaddress
+import logging
+import logging.handlers
 
 def memoized(func):
     @wraps(func)
@@ -31,6 +33,25 @@ def checksum(value, bits=16):
     while result >= carry:
         result = sum(divmod(result, carry))
     return ~result & ((1 << bits) - 1)
+
+class StderrHandler(logging.StreamHandler):
+    def __init__(self):
+        logging.StreamHandler.__init__(self)
+        self.setFormatter(logging.Formatter('[%(process)d] %(message)s'))
+
+class SyslogHandler(logging.handlers.SysLogHandler):
+    def __init__(self, filename):
+        logging.handlers.SysLogHandler.__init__(self)
+        self.setFormatter(logging.Formatter('%(levelname)s: %(name)s.%(funcName)s(): %(message)s'))
+
+class FileHandler(logging.handlers.WatchedFileHandler):
+    def __init__(self, filename):
+        logging.handlers.WatchedFileHandler.__init__(self, filename, encoding='utf-8')
+        self.setFormatter(logging.Formatter('[%(asctime)s] [%(process)d] %(levelname)s: %(name)s.%(funcName)s(): %(message)s'))
+
+logger = logging.getLogger('ping').getChild(__name__)
+logger.addHandler(StderrHandler())
+logger.setLevel(logging.DEBUG)
 
 class PingError(Exception): pass
 class TimeExceeded(PingError): pass
@@ -187,6 +208,9 @@ class EchoRequest(IcmpPacket):
         return self.header + self.payload
 
 class EchoReply(IcmpPacket):
+    def __str__(self):
+        return '<EchoReply> {} {} {}'.format(self.type.name, self.id, self.seq)
+
     @property
     def id(self):
         return self.header['id']
@@ -273,10 +297,13 @@ class Ping(object):
                 raise DestinationUnreachable(ip_header=ip.header, icmp_header=echo_reply.header)
             if echo_reply.header['id']:
                 if echo_reply.header['type'] == IcmpType.ECHO_REQUEST:
+                    logger.debug('"ECHO_REQUEST" received. Packet filtered out.')
                     continue
                 if echo_reply.id != echo_request.id:
+                    logger.debug('ICMP ID dismatch. Packet filtered out.')
                     continue
                 if echo_reply.seq != echo_request.seq:
+                    logger.debug('IMCP SEQ dismatch. Packet filtered out.')
                     continue
             if echo_reply.header['type'] == IcmpType.ECHO_REPLY:
                 return {
@@ -284,6 +311,7 @@ class Ping(object):
                     'size': ip.payload_size,
                     'roundtrip': (time.time() - echo_reply.epoch) * 1000.0, 
                     'ttl': ip.header['ttl']}
+            logger.debug('Uncatched ICMP packet: {!s}'.format(echo_reply))
 
 class Pings(object):
     pass
