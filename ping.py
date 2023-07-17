@@ -259,6 +259,7 @@ class Ping(object):
     
     def execute(self, addr):
         self.seq += 1
+        # Open and prepare socket
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
         if self.ttl:
             try:
@@ -271,12 +272,15 @@ class Ping(object):
                     self.socket.setsockopt(socket.SOL_IP, socket.IP_TTL, self.ttl)
             except OSError as err:
                 pass
+        # Resolve address
         try:
             addr = socket.gethostbyname(addr)
         except socket.gaierror as e:
             raise HostUnknown(addr=addr) from e
+        # ICMP request
         echo_request = EchoRequest(seq=self.seq)
         self.socket.sendto(echo_request.raw_packet, (addr, 0))
+        # ICMP response
         timeout = time.time() +  self.timeout
         while True:
             select_timeout = timeout - time.time()
