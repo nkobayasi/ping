@@ -244,7 +244,7 @@ class PingResult(object):
         pass
 
     @classmethod
-    def factory(cls, ip: IpPacket) -> PingResult:
+    def factory(cls, ip: IpPacket):
         echo_reply = EchoReply.factory(ip.payload)
         self = cls()
         self.addr = ip.src_addr
