@@ -285,9 +285,9 @@ class Ping(object):
         echo_request = EchoRequest(seq=self.seq)
         self.socket.sendto(echo_request.raw_packet, (addr, 0))
         # ICMP response
-        timeout = time.time() +  self.timeout
+        limited_unixtime = time.time() +  self.timeout
         while True:
-            select_timeout = timeout - time.time()
+            select_timeout = limited_unixtime - time.time()
             if select_timeout < 0:
                 select_timeout = 0
             selected = select.select([self.socket, ], [], [], select_timeout)
