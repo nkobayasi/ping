@@ -291,7 +291,7 @@ class Ping(object):
             if select_timeout < 0:
                 select_timeout = 0
             selected = select.select([self.socket, ], [], [], select_timeout)
-            if selected[0] == []:
+            if selected[0] == []: # Empty element that first element of selected result means timed out
                 raise PingTimeout(addr=addr, timeout=self.timeout)
             raw_packet, addr = self.socket.recvfrom(1500)
             ip = IpPacket.factory(raw_packet)
