@@ -54,40 +54,42 @@ logger.addHandler(StderrHandler())
 logger.setLevel(logging.DEBUG)
 
 class PingError(Exception): pass
-class TimeExceeded(PingError): pass
+
+class HostUnknown(PingError):
+    def __init__(self, message='Cannot resolve: Unknown host.', addr=None):
+        self.addr = addr
+        self.message = message if self.addr is None else message + " (Host='{}')".format(self.addr)
+        super().__init__(self.message)
 
 class PingTimeout(PingError):
-    def __init__(self, message="Request timeout for ICMP packet.", timeout=None):
+    def __init__(self, message='Request timeout for ICMP packet.', addr=None, timeout=None):
+        self.addr = addr
         self.timeout = timeout
         self.message = message if self.timeout is None else message + " (Timeout={}s)".format(self.timeout)
         super().__init__(self.message)
 
+class TimeExceeded(PingError): pass
+
 class TimeToLiveExpired(TimeExceeded):
-    def __init__(self, message="Time exceeded: Time To Live expired.", ip_header=None, icmp_header=None):
-        self.ip_header = ip_header
-        self.icmp_header = icmp_header
+    def __init__(self, message='Time exceeded: Time To Live expired.', ip=None):
+        self.ip = ip
+        self.icmp = EchoReply(ip.payload)
         self.message = message
         super().__init__(self.message)
 
 class DestinationUnreachable(PingError):
-    def __init__(self, message="Destination unreachable.", ip_header=None, icmp_header=None):
-        self.ip_header = ip_header
-        self.icmp_header = icmp_header
-        self.message = message if self.ip_header is None else message + " (Host='{}')".format(ipaddress.ip_address(self.ip_header.get("src_addr")))
+    def __init__(self, message='Destination unreachable.', ip=None):
+        self.ip = ip
+        self.icmp = EchoReply(ip.payload)
+        if ip is None:
+            self.message = message
+        else:
+            self.message = message + ' (Host="{}")'.format(ip.src_addr)
         super().__init__(self.message)
 
 class DestinationHostUnreachable(DestinationUnreachable):
-    def __init__(self, message="Destination unreachable: Host unreachable.", ip_header=None, icmp_header=None):
-        self.ip_header = ip_header
-        self.icmp_header = icmp_header
-        self.message = message if self.ip_header is None else message + " (Host='{}')".format(ipaddress.ip_address(self.ip_header.get("src_addr")))
-        super().__init__(self.message)
-
-class HostUnknown(PingError):
-    def __init__(self, message="Cannot resolve: Unknown host.", addr=None):
-        self.addr = addr
-        self.message = message if self.addr is None else message + " (Host='{}')".format(self.addr)
-        super().__init__(self.message)
+    def __init__(self, message='Destination unreachable: Host unreachable.', ip=None):
+        super().__init__(self.message, ip=ip)
 
 class IpPacket(object):
     HEADER_FORMAT = "!BBHHHBBHII"
@@ -290,7 +292,7 @@ class Ping(object):
                 select_timeout = 0
             selected = select.select([self.socket, ], [], [], select_timeout)
             if selected[0] == []:
-                raise PingTimeout(timeout=self.timeout)
+                raise PingTimeout(addr=addr, timeout=self.timeout)
             raw_packet, addr = self.socket.recvfrom(1500)
             ip = IpPacket.factory(raw_packet)
             echo_reply = EchoReply.factory(ip.payload)
