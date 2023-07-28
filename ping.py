@@ -310,10 +310,10 @@ class Ping(object):
                     logger.debug('"ECHO_REQUEST" received. Packet filtered out.')
                     continue
                 if echo_reply.id != echo_request.id:
-                    logger.debug('ICMP ID dismatch. Packet filtered out.')
+                    logger.debug('Mismatch ICMP ID. Packet filtered out.')
                     continue
                 if echo_reply.seq != echo_request.seq:
-                    logger.debug('IMCP SEQ dismatch. Packet filtered out.')
+                    logger.debug('Mismatch IMCP Sequence. Packet filtered out.')
                     continue
             if echo_reply.header['type'] == IcmpType.ECHO_REPLY:
                 return {
