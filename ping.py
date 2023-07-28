@@ -317,10 +317,10 @@ class Ping(object):
                     continue
             if echo_reply.header['type'] == IcmpType.ECHO_REPLY:
                 return {
-                    'addr': ipaddress.ip_address(ip.header['src_addr']),
+                    'addr': ip.src_addr,
                     'size': ip.payload_size,
                     'roundtrip': (time.time() - echo_reply.epoch) * 1000.0, 
-                    'ttl': ip.header['ttl']}
+                    'ttl': ip.ttl}
             logger.debug('Uncatched ICMP packet: {!s}'.format(echo_reply))
 
 class Pings(object):
