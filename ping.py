@@ -270,6 +270,8 @@ class Ping(object):
                 pass
         
         self.seq += 1
+        if 0xffff < self.seq:
+            self.seq = 1
         # Open and prepare socket
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
         if self.ttl:
