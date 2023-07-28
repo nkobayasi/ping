@@ -262,20 +262,19 @@ class Ping(object):
         self.ttl = ttl
     
     def execute(self, addr):
+        def try_setsockopt(socket, level, optname, value):
+            try:
+                if socket.getsockopt(level, optname):
+                    socket.setsockopt(level, optname, value)
+            except OSError as err:
+                pass
+        
         self.seq += 1
         # Open and prepare socket
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
         if self.ttl:
-            try:
-                if self.socket.getsockopt(socket.IPPROTO_IP, socket.IP_TTL):
-                    self.socket.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, self.ttl)
-            except OSError as err:
-                pass
-            try:
-                if self.socket.getsockopt(socket.SOL_IP, socket.IP_TTL):
-                    self.socket.setsockopt(socket.SOL_IP, socket.IP_TTL, self.ttl)
-            except OSError as err:
-                pass
+            try_setsockopt(self.socket, socket.IPPROTO_IP, socket.IP_TTL, self.ttl)
+            try_setsockopt(self.socket, socket.SOL_IP, socket.IP_TTL, self.ttl)
         # Resolve address
         try:
             addr = socket.gethostbyname(addr)
