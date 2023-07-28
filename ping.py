@@ -190,7 +190,7 @@ class EchoRequest(IcmpPacket):
 
     @property
     def seq(self):
-        return self._seq
+        return self._seq & 0xffff
 
     @property
     @memoized
@@ -299,12 +299,12 @@ class Ping(object):
             echo_reply = EchoReply.factory(ip.payload)
             if echo_reply.header['type'] == IcmpType.TIME_EXCEEDED:
                 if echo_reply.header['code'] == IcmpTimeExceededCode.TTL_EXPIRED:
-                    raise TimeToLiveExpired(ip_header=ip.header, icmp_header=echo_reply.header)
+                    raise TimeToLiveExpired(ip=ip)
                 raise TimeExceeded()
             if echo_reply.header['type'] == IcmpType.DESTINATION_UNREACHABLE:
                 if echo_reply.header['code'] == IcmpDestinationUnreachableCode.DESTINATION_HOST_UNREACHABLE:
-                    raise DestinationHostUnreachable(ip_header=ip.header, icmp_header=echo_reply.header)
-                raise DestinationUnreachable(ip_header=ip.header, icmp_header=echo_reply.header)
+                    raise DestinationHostUnreachable(ip=ip)
+                raise DestinationUnreachable(ip=ip)
             if echo_reply.header['id']:
                 if echo_reply.header['type'] == IcmpType.ECHO_REQUEST:
                     logger.debug('"ECHO_REQUEST" received. Packet filtered out.')
