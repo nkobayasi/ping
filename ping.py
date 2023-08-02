@@ -56,16 +56,20 @@ logger.setLevel(logging.DEBUG)
 class PingError(Exception): pass
 
 class HostUnknown(PingError):
-    def __init__(self, message='Cannot resolve: Unknown host.', addr=None):
+    def __init__(self, message = 'Cannot resolve: Unknown host.', addr=None):
         self.addr = addr
-        self.message = message if self.addr is None else message + ' (Host="{}")'.format(self.addr)
+        self.message = messsage
+        if self.addr is not None:
+            message += ' (Host="{}")'.format(self.addr)
         super().__init__(self.message)
 
 class PingTimeout(PingError):
-    def __init__(self, message='Request timeout for ICMP packet.', addr=None, timeout=None):
+    def __init__(self, message = 'Request timeout for ICMP packet.', addr=None, timeout=None):
         self.addr = addr
         self.timeout = timeout
-        self.message = message if self.timeout is None else message + " (Timeout={}s)".format(self.timeout)
+        self.message = message
+        if self.timeout is not None:
+            message += ' (Timeout={}s)'.format(self.timeout)
         super().__init__(self.message)
 
 class TimeExceeded(PingError): pass
@@ -81,15 +85,14 @@ class DestinationUnreachable(PingError):
     def __init__(self, message='Destination unreachable.', ip=None):
         self.ip = ip
         self.icmp = EchoReply(ip.payload)
-        if ip is None:
-            self.message = message
-        else:
-            self.message = message + ' (Host="{}")'.format(ip.src_addr)
+        self.message = message
+        if ip is not None:
+            self.message += ' (Host="{}")'.format(ip.src_addr)
         super().__init__(self.message)
 
 class DestinationHostUnreachable(DestinationUnreachable):
     def __init__(self, message='Destination unreachable: Host unreachable.', ip=None):
-        super().__init__(self.message, ip=ip)
+        super().__init__(message, ip=ip)
 
 class IpPacket(object):
     HEADER_FORMAT = "!BBHHHBBHII"
