@@ -179,7 +179,7 @@ class EchoRequest(IcmpPacket):
         super().__init__()
         self._seq = seq
         self.size = size
-        self.epoch = time.time()
+        self.timestamp = time.time()
 
     @property
     @memoized
@@ -205,7 +205,7 @@ class EchoRequest(IcmpPacket):
     @property
     @memoized
     def payload(self):
-        return struct.pack(self.TIME_FORMAT, self.epoch) + b'Q' * (self.size - struct.calcsize(self.TIME_FORMAT))
+        return struct.pack(self.TIME_FORMAT, self.timestamp) + b'Q' * (self.size - struct.calcsize(self.TIME_FORMAT))
     
     @property
     @memoized
@@ -241,7 +241,7 @@ class EchoReply(IcmpPacket):
     
     @property
     @memoized
-    def epoch(self):
+    def timestamp(self):
         return struct.unpack(self.TIME_FORMAT, self.payload[0:struct.calcsize(self.TIME_FORMAT)])[0]
 
 class Ping(object):
@@ -308,7 +308,7 @@ class Ping(object):
                 return {
                     'addr': ip.src_addr,
                     'size': ip.payload_size,
-                    'roundtrip': (time.time() - echo_reply.epoch) * 1000.0, 
+                    'roundtrip': (time.time() - echo_reply.timestamp) * 1000.0, 
                     'ttl': ip.ttl}
             logger.debug('Uncatched ICMP packet: {!s}'.format(echo_reply))
 
