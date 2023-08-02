@@ -393,7 +393,6 @@ class Ping(object):
                     'addr': ip.src_addr,
                     'size': ip.payload_size,
                     'roundtrip': (time.time() - echo_reply.epoch) * 1000.0, 
-                    'delta': RoundTripTime(milliseconds=(time.time() - echo_reply.epoch) * 1000.0), 
                     'ttl': ip.ttl}
             logger.debug('Uncatched ICMP packet: {!s}'.format(echo_reply))
 
