@@ -56,7 +56,7 @@ logger.setLevel(logging.DEBUG)
 class PingError(Exception): pass
 
 class HostUnknown(PingError):
-    def __init__(self, message = 'Cannot resolve: Unknown host.', addr=None):
+    def __init__(self, message='Cannot resolve: Unknown host.', addr=None):
         self.addr = addr
         self.message = messsage
         if self.addr is not None:
@@ -64,7 +64,7 @@ class HostUnknown(PingError):
         super().__init__(self.message)
 
 class PingTimeout(PingError):
-    def __init__(self, message = 'Request timeout for ICMP packet.', addr=None, timeout=None):
+    def __init__(self, message='Request timeout for ICMP packet.', addr=None, timeout=None):
         self.addr = addr
         self.timeout = timeout
         self.message = message
