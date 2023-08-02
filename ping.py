@@ -397,28 +397,6 @@ class Ping(object):
                     'ttl': ip.ttl}
             logger.debug('Uncatched ICMP packet: {!s}'.format(echo_reply))
 
-class Pings(object):
-    pass
-
-class PingsStatic(object):
-    def __init__(self, results):
-        self.results = results
-
-    def __str__(self):
-        return '{!s}, min: {:.2f}, max: {:.2f}, avg: {:.2f}'.format(self.results, self.min, self.max, self.avg)
-        
-    @property
-    def min(self):
-        return min(map(lambda _: _['roundtrip'], self.results))
-
-    @property
-    def max(self):
-        return max(map(lambda _: _['roundtrip'], self.results))
-
-    @property
-    def avg(self):
-        return sum(map(lambda _: _['roundtrip'], self.results)) / len(self.results)
-
 def ping(addr, times=1, interval=1.0, ttl=None):
     results = []
     ping = Ping(ttl=ttl)
@@ -429,7 +407,7 @@ def ping(addr, times=1, interval=1.0, ttl=None):
 
 def main():
     print(ping('127.0.0.1', 4))
-    print(PingsStatic(ping('8.8.8.8', 4)))
+    print(ping('8.8.8.8', 4))
     print(ping('google.com'))
 
 if __name__ == '__main__':
