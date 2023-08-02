@@ -1,0 +1,9 @@
+.settings/
+.vscode/
+__pycache__/
+.project
+.pydevproject
+*.pyc
+*.log
+*.exe
+*.db
