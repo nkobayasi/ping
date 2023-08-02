@@ -58,14 +58,18 @@ class PingError(Exception): pass
 class HostUnknown(PingError):
     def __init__(self, message='Cannot resolve: Unknown host.', addr=None):
         self.addr = addr
-        self.message = message if self.addr is None else message + " (Host='{}')".format(self.addr)
+        self.message = messsage
+        if self.addr is not None:
+            message += ' (Host="{}")'.format(self.addr)
         super().__init__(self.message)
 
 class PingTimeout(PingError):
     def __init__(self, message='Request timeout for ICMP packet.', addr=None, timeout=None):
         self.addr = addr
         self.timeout = timeout
-        self.message = message if self.timeout is None else message + " (Timeout={}s)".format(self.timeout)
+        self.message = message
+        if self.timeout is not None:
+            message += ' (Timeout={}s)'.format(self.timeout)
         super().__init__(self.message)
 
 class TimeExceeded(PingError): pass
@@ -81,15 +85,14 @@ class DestinationUnreachable(PingError):
     def __init__(self, message='Destination unreachable.', ip=None):
         self.ip = ip
         self.icmp = EchoReply(ip.payload)
-        if ip is None:
-            self.message = message
-        else:
-            self.message = message + ' (Host="{}")'.format(ip.src_addr)
+        self.message = message
+        if ip is not None:
+            self.message += ' (Host="{}")'.format(ip.src_addr)
         super().__init__(self.message)
 
 class DestinationHostUnreachable(DestinationUnreachable):
     def __init__(self, message='Destination unreachable: Host unreachable.', ip=None):
-        super().__init__(self.message, ip=ip)
+        super().__init__(message, ip=ip)
 
 class IpPacket(object):
     HEADER_FORMAT = "!BBHHHBBHII"
@@ -241,20 +244,6 @@ class EchoReply(IcmpPacket):
     def epoch(self):
         return struct.unpack(self.TIME_FORMAT, self.payload[0:struct.calcsize(self.TIME_FORMAT)])[0]
 
-class PingResult(object):
-    def __init__(self):
-        pass
-
-    @classmethod
-    def factory(cls, ip: IpPacket):
-        echo_reply = EchoReply.factory(ip.payload)
-        self = cls()
-        self.addr = ip.src_addr
-        self.roundtrip = (time.time() - echo_reply.epoch) * 1000.0
-        self.size = ip.payload_size
-        self.ttl = ip.ttl
-        return self
-
 class Ping(object):
     def __init__(self, ttl=None, timeout=10):
         self.timeout = timeout
@@ -323,28 +312,6 @@ class Ping(object):
                     'ttl': ip.ttl}
             logger.debug('Uncatched ICMP packet: {!s}'.format(echo_reply))
 
-class Pings(object):
-    pass
-
-class PingsStatic(object):
-    def __init__(self, results):
-        self.results = results
-
-    def __str__(self):
-        return '{!s}, min: {:.2f}, max: {:.2f}, avg: {:.2f}'.format(self.results, self.min, self.max, self.avg)
-        
-    @property
-    def min(self):
-        return min(map(lambda _: _['roundtrip'], self.results))
-
-    @property
-    def max(self):
-        return max(map(lambda _: _['roundtrip'], self.results))
-
-    @property
-    def avg(self):
-        return sum(map(lambda _: _['roundtrip'], self.results)) / len(self.results)
-
 def ping(addr, times=1, interval=1.0, ttl=None):
     results = []
     ping = Ping(ttl=ttl)
@@ -355,7 +322,7 @@ def ping(addr, times=1, interval=1.0, ttl=None):
 
 def main():
     print(ping('127.0.0.1', 4))
-    print(PingsStatic(ping('8.8.8.8', 4)))
+    print(ping('8.8.8.8', 4))
     print(ping('google.com'))
 
 if __name__ == '__main__':
