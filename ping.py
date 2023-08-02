@@ -317,20 +317,6 @@ class RoundTripTime(object):
         return self.value * 1000.0
     ns = microseconds
 
-class PingResult(object):
-    def __init__(self):
-        pass
-
-    @classmethod
-    def factory(cls, ip: IpPacket):
-        echo_reply = EchoReply.factory(ip.payload)
-        self = cls()
-        self.addr = ip.src_addr
-        self.roundtrip = (time.time() - echo_reply.epoch) * 1000.0
-        self.size = ip.payload_size
-        self.ttl = ip.ttl
-        return self
-
 class Ping(object):
     def __init__(self, ttl=None, timeout=10):
         self.timeout = timeout
