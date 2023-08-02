@@ -214,7 +214,7 @@ class EchoRequest(IcmpPacket):
 
 class EchoReply(IcmpPacket):
     def __repr__(self):
-        return '<EchoReply: type.name="{}" id={} seq={}>'.format(self.type.name, self.id, self.seq)
+        return '<IcmpPacket: type.name="{}" id={} seq={}>'.format(self.type.name, self.id, self.seq)
 
     @property
     def id(self):
