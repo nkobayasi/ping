@@ -94,6 +94,40 @@ class DestinationHostUnreachable(DestinationUnreachable):
     def __init__(self, message='Destination unreachable: Host unreachable.', ip=None):
         super().__init__(message, ip=ip)
 
+class IcmpType(enum.IntEnum):
+    ECHO_REPLY = 0
+    DESTINATION_UNREACHABLE = 3
+    REDIRECT_MESSAGE = 5
+    ECHO_REQUEST = 8
+    ROUTER_ADVERTISEMENT = 9
+    ROUTER_SOLICITATION = 10
+    TIME_EXCEEDED = 11
+    BAD_IP_HEADER = 12
+    TIMESTAMP = 13
+    TIMESTAMP_REPLY = 14
+
+class IcmpTimeExceededCode(enum.IntEnum):
+    TTL_EXPIRED = 0
+    FRAGMENT_REASSEMBLY_TIME_EXCEEDED = 1
+
+class IcmpDestinationUnreachableCode(enum.IntEnum):
+    DESTINATION_NETWORK_UNREACHABLE = 0
+    DESTINATION_HOST_UNREACHABLE = 1
+    DESTINATION_PROTOCOL_UNREACHABLE = 2
+    DESTINATION_PORT_UNREACHABLE = 3
+    FRAGMENTATION_REQUIRED = 4
+    SOURCE_ROUTE_FAILED = 5
+    DESTINATION_NETWORK_UNKNOWN = 6
+    DESTINATION_HOST_UNKNOWN = 7
+    SOURCE_HOST_ISOLATED = 8
+    NETWORK_ADMINISTRATIVELY_PROHIBITED = 9
+    HOST_ADMINISTRATIVELY_PROHIBITED = 10
+    NETWORK_UNREACHABLE_FOR_TOS = 11
+    HOST_UNREACHABLE_FOR_TOS = 12
+    COMMUNICATION_ADMINISTRATIVELY_PROHIBITED = 13
+    HOST_PRECEDENCE_VIOLATION = 14
+    PRECEDENCE_CUTOFF_IN_EFFECT = 15
+
 class IpPacket(object):
     HEADER_FORMAT = "!BBHHHBBHII"
     
@@ -140,46 +174,12 @@ class IcmpPacket(object):
         self.raw = raw
         return self
 
-class IcmpType(enum.IntEnum):
-    ECHO_REPLY = 0
-    DESTINATION_UNREACHABLE = 3
-    REDIRECT_MESSAGE = 5
-    ECHO_REQUEST = 8
-    ROUTER_ADVERTISEMENT = 9
-    ROUTER_SOLICITATION = 10
-    TIME_EXCEEDED = 11
-    BAD_IP_HEADER = 12
-    TIMESTAMP = 13
-    TIMESTAMP_REPLY = 14
-
-class IcmpTimeExceededCode(enum.IntEnum):
-    TTL_EXPIRED = 0
-    FRAGMENT_REASSEMBLY_TIME_EXCEEDED = 1
-
-class IcmpDestinationUnreachableCode(enum.IntEnum):
-    DESTINATION_NETWORK_UNREACHABLE = 0
-    DESTINATION_HOST_UNREACHABLE = 1
-    DESTINATION_PROTOCOL_UNREACHABLE = 2
-    DESTINATION_PORT_UNREACHABLE = 3
-    FRAGMENTATION_REQUIRED = 4
-    SOURCE_ROUTE_FAILED = 5
-    DESTINATION_NETWORK_UNKNOWN = 6
-    DESTINATION_HOST_UNKNOWN = 7
-    SOURCE_HOST_ISOLATED = 8
-    NETWORK_ADMINISTRATIVELY_PROHIBITED = 9
-    HOST_ADMINISTRATIVELY_PROHIBITED = 10
-    NETWORK_UNREACHABLE_FOR_TOS = 11
-    HOST_UNREACHABLE_FOR_TOS = 12
-    COMMUNICATION_ADMINISTRATIVELY_PROHIBITED = 13
-    HOST_PRECEDENCE_VIOLATION = 14
-    PRECEDENCE_CUTOFF_IN_EFFECT = 15
-
 class EchoRequest(IcmpPacket):
     def __init__(self, seq=0, size=56):
         super().__init__()
         self._seq = seq
         self.size = size
-        self.epoch = time.time()
+        self.timestamp = time.time()
 
     @property
     @memoized
@@ -205,7 +205,7 @@ class EchoRequest(IcmpPacket):
     @property
     @memoized
     def payload(self):
-        return struct.pack(self.TIME_FORMAT, self.epoch) + b'Q' * (self.size - struct.calcsize(self.TIME_FORMAT))
+        return struct.pack(self.TIME_FORMAT, self.timestamp) + b'Q' * (self.size - struct.calcsize(self.TIME_FORMAT))
     
     @property
     @memoized
@@ -214,7 +214,7 @@ class EchoRequest(IcmpPacket):
 
 class EchoReply(IcmpPacket):
     def __repr__(self):
-        return '<EchoReply: type.name="{}" id={} seq={}>'.format(self.type.name, self.id, self.seq)
+        return '<IcmpPacket: type.name="{}" id={} seq={}>'.format(self.type.name, self.id, self.seq)
 
     @property
     def id(self):
@@ -241,7 +241,7 @@ class EchoReply(IcmpPacket):
     
     @property
     @memoized
-    def epoch(self):
+    def timestamp(self):
         return struct.unpack(self.TIME_FORMAT, self.payload[0:struct.calcsize(self.TIME_FORMAT)])[0]
 
 class Ping(object):
@@ -308,7 +308,7 @@ class Ping(object):
                 return {
                     'addr': ip.src_addr,
                     'size': ip.payload_size,
-                    'roundtrip': (time.time() - echo_reply.epoch) * 1000.0, 
+                    'roundtrip': (time.time() - echo_reply.timestamp) * 1000.0, 
                     'ttl': ip.ttl}
             logger.debug('Uncatched ICMP packet: {!s}'.format(echo_reply))
 
