@@ -257,6 +257,11 @@ class Ping(object):
                     socket.setsockopt(level, optname, value)
             except OSError as err:
                 pass
+
+        def lower_limit_to_zero(value):
+            if value < 0:
+                return 0
+            return value
         
         self.seq += 1
         # Open and prepare socket
@@ -275,9 +280,7 @@ class Ping(object):
         # ICMP response
         limited_unixtime = time.time() +  self.timeout
         while True:
-            select_timeout = limited_unixtime - time.time()
-            if select_timeout < 0:
-                select_timeout = 0
+            select_timeout = lower_limit_to_zero(limited_unixtime - time.time())
             selected = select.select([self.socket, ], [], [], select_timeout)
             if selected[0] == []: # The empty that first element of selected result means timed out
                 raise PingTimeout(addr=addr, timeout=self.timeout)
