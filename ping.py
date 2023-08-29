@@ -297,13 +297,13 @@ class Ping(object):
                 raise DestinationUnreachable(ip=ip)
             if echo_reply.header['id']:
                 if echo_reply.header['type'] == IcmpType.ECHO_REQUEST:
-                    logger.debug('"ECHO_REQUEST" received. Packet filtered out.')
+                    logger.debug('Received "ECHO_REQUEST". Packet filtered.')
                     continue
                 if echo_reply.id != echo_request.id:
-                    logger.debug('Mismatch ICMP ID. Packet filtered out.')
+                    logger.debug('Mismatch ICMP ID. Packet filtered.')
                     continue
                 if echo_reply.seq != echo_request.seq:
-                    logger.debug('Mismatch IMCP Sequence. Packet filtered out.')
+                    logger.debug('Mismatch ICMP Sequence. Packet filtered.')
                     continue
             if echo_reply.header['type'] == IcmpType.ECHO_REPLY:
                 return {
