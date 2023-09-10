@@ -311,6 +311,7 @@ class Ping(object):
                 return {
                     'addr': ip.src_addr,
                     'size': ip.payload_size,
+                    'seq': echo_reply.seq,
                     'roundtrip': (time.time() - echo_reply.timestamp) * 1000.0, 
                     'ttl': ip.ttl}
             logger.debug('Uncaught ICMP packet: {!s}'.format(echo_reply))
