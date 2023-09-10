@@ -14,6 +14,8 @@ import ipaddress
 import logging
 import logging.handlers
 
+__version__ = "4.0.4"
+
 def memoized(func):
     @wraps(func)
     def closure(*args, **kwargs):
@@ -313,9 +315,9 @@ class Ping(object):
                     'ttl': ip.ttl}
             logger.debug('Uncaught ICMP packet: {!s}'.format(echo_reply))
 
-def ping(addr, times=1, interval=1.0, ttl=None):
+def ping(addr, times=1, interval=1.0, ttl=None, timeout=10):
     results = []
-    ping = Ping(ttl=ttl)
+    ping = Ping(ttl=ttl, timeout=timeout)
     for _ in range(times):
         results.append(ping.execute(addr))
         time.sleep(interval)
