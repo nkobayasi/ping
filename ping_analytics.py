@@ -10,8 +10,8 @@ class PingResult(object):
         pass
 
     @classmethod
-    def factory(cls, ip: IpPacket):
-        echo_reply = EchoReply.factory(ip.payload)
+    def factory(cls, ip: pinglib.IpPacket):
+        echo_reply = pinglib.EchoReply.factory(ip.payload)
         self = cls()
         self.addr = ip.src_addr
         self.roundtrip = (time.time() - echo_reply.epoch) * 1000.0
@@ -55,6 +55,38 @@ class PingAnalytics(object):
                 ttl integer,
                 epoch datetime)""")
         self.db.commit()
+        
+    def create(self):
+        cursor = self.db.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS histories(
+                error boolean,
+                error_string text,
+                addr varchar(15),
+                size integer,
+                roundtrip float,
+                ttl integer,
+                epoch datetime)""")
+        self.db.commit()
+    
+    def recreate(self):
+        cursor = self.db.cursor()
+        cursor.execute("""DROP TABLE IF EXISTS histories""")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS histories(
+                error boolean,
+                error_string text,
+                addr varchar(15),
+                size integer,
+                roundtrip float,
+                ttl integer,
+                epoch datetime)""")
+        self.db.commit()
+        
+    def reset(self):
+        cursor = self.db.cursor()
+        cursor.execute("""DELETE FROM histories""")
+        self.db.commit();
 
     def record(self, result):
         cursor = self.db.cursor()
@@ -77,7 +109,7 @@ class PingAnalytics(object):
     @property
     def result(self):
         cursor = self.db.cursor()
-        cursor.execute("""SELECT addr, min(roundtrip) AS min, max(roundtrip) AS max, avg(roundtrip) AS avg FROM histories GROUP BY addr""")
+        cursor.execute("""SELECT addr, min(roundtrip) AS min, max(roundtrip) AS max, avg(roundtrip) AS avg FROM histories WHERE NOT error GROUP BY addr""")
         return cursor.fetchall()
 
     @property
@@ -89,7 +121,7 @@ class PingAnalytics(object):
                 avg(abs(roundtrip - avg.avg)) AS jitter
             FROM
                 histories
-                    INNER JOIN (SELECT addr, avg(roundtrip) AS avg FROM histories GROUP BY addr) avg ON histories.addr = avg.addr
+                    INNER JOIN (SELECT addr, avg(roundtrip) AS avg FROM histories WHERE NOT error GROUP BY addr) avg ON histories.addr = avg.addr
             GROUP BY
                 histories.addr""")
         return cursor.fetchall()
