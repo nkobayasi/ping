@@ -247,10 +247,11 @@ class EchoReply(IcmpPacket):
         return struct.unpack(self.TIME_FORMAT, self.payload[0:struct.calcsize(self.TIME_FORMAT)])[0]
 
 class Ping(object):
-    def __init__(self, ttl=None, timeout=10):
+    def __init__(self, ttl=None, size=56, timeout=10):
         self.timeout = timeout
         self.seq = 0
         self.ttl = ttl
+        self.size = size
     
     def execute(self, addr):
         def try_setsockopt(socket, level, optname, value):
@@ -277,7 +278,7 @@ class Ping(object):
         except socket.gaierror as e:
             raise HostUnknown(addr=addr) from e
         # ICMP request
-        echo_request = EchoRequest(seq=self.seq)
+        echo_request = EchoRequest(seq=self.seq, size=self.size)
         self.socket.sendto(echo_request.raw_packet, (addr, 0))
         # ICMP response
         limited_unixtime = time.time() +  self.timeout
