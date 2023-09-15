@@ -53,7 +53,6 @@ class FileHandler(logging.handlers.WatchedFileHandler):
 
 logger = logging.getLogger('ping').getChild(__name__)
 logger.addHandler(StderrHandler())
-logger.setLevel(logging.DEBUG)
 
 class PingError(Exception): pass
 
@@ -317,16 +316,17 @@ class Ping(object):
                     'ttl': ip.ttl}
             logger.debug('Uncaught ICMP packet: {!s}'.format(echo_reply))
 
-def ping(addr, times=1, interval=1.0, ttl=None, timeout=10):
+def ping(addr, times=1, interval=1.0, ttl=None, size=56, timeout=10):
     results = []
-    ping = Ping(ttl=ttl, timeout=timeout)
+    ping = Ping(ttl=ttl, size=size, timeout=timeout)
     for _ in range(times):
         results.append(ping.execute(addr))
         time.sleep(interval)
     return results
 
 def main():
-    print(ping('127.0.0.1', 4))
+    logger.setLevel(logging.DEBUG)
+    print(ping('127.0.0.1', 4, size=120))
     print(ping('8.8.8.8', 4))
     print(ping('google.com'))
 
