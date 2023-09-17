@@ -78,14 +78,14 @@ class TimeExceeded(PingError): pass
 class TimeToLiveExpired(TimeExceeded):
     def __init__(self, message='Time exceeded: Time To Live expired.', ip=None):
         self.ip = ip
-        self.icmp = EchoReply(ip.payload)
+        self.icmp = EchoReply.factory(ip.payload)
         self.message = message
         super().__init__(self.message)
 
 class DestinationUnreachable(PingError):
     def __init__(self, message='Destination unreachable.', ip=None):
         self.ip = ip
-        self.icmp = EchoReply(ip.payload)
+        self.icmp = EchoReply.factory(ip.payload)
         self.message = message
         if ip is not None:
             self.message += ' (Host="{}")'.format(ip.src_addr)
