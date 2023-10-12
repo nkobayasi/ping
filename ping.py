@@ -147,23 +147,27 @@ class IpPacket(object):
         return ipaddress.ip_address(self.header['dest_addr'])
     
     @property
-    def payload_size(self):
-        return self.header['len'] - struct.calcsize(self.HEADER_FORMAT)
-
-    @property
     def ttl(self):
         return self.header['ttl']
     
     @property
+    def header_size(self):
+        return struct.calcsize(self.HEADER_FORMAT)
+
+    @property
+    def payload_size(self):
+        return self.header['len'] - self.header_size
+
+    @property
     @memoized
     def header(self):
         header_keys = ('version', 'tos', 'len', 'id', 'flags', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr')
-        return dict(zip(header_keys, struct.unpack(self.HEADER_FORMAT, self.raw[0:struct.calcsize(self.HEADER_FORMAT)])))
+        return dict(zip(header_keys, struct.unpack(self.HEADER_FORMAT, self.raw[0:self.header_size])))
     
     @property
     @memoized
     def payload(self):
-        return self.raw[struct.calcsize(self.HEADER_FORMAT):]
+        return self.raw[self.header_size:]
 
 class IcmpPacket(object):
     HEADER_FORMAT = "!BBHHH"
@@ -230,15 +234,19 @@ class EchoReply(IcmpPacket):
         return IcmpType(self.header['type'])
 
     @property
+    def header_size(self):
+        return struct.calcsize(self.HEADER_FORMAT)
+
+    @property
     @memoized
     def header(self):
         header_keys = ('type', 'code', 'checksum', 'id', 'seq')
-        return dict(zip(header_keys, struct.unpack(self.HEADER_FORMAT, self.raw[0:struct.calcsize(self.HEADER_FORMAT)])))
+        return dict(zip(header_keys, struct.unpack(self.HEADER_FORMAT, self.raw[0:self.header_size])))
     
     @property
     @memoized
     def payload(self):
-        return self.raw[struct.calcsize(self.HEADER_FORMAT):]
+        return self.raw[self.header_size:]
     
     @property
     @memoized
@@ -298,7 +306,7 @@ class Ping(object):
                     raise DestinationHostUnreachable(ip=ip)
                 raise DestinationUnreachable(ip=ip)
             if echo_reply.header['id']:
-                if echo_reply.header['type'] == IcmpType.ECHO_REQUEST:
+                if echo_reply.type == IcmpType.ECHO_REQUEST:
                     logger.debug('Received ICMP type, "ECHO_REQUEST". Packet filtered.')
                     continue
                 if echo_reply.id != echo_request.id:
@@ -307,7 +315,7 @@ class Ping(object):
                 if echo_reply.seq != echo_request.seq:
                     logger.debug('Mismatch ICMP echos and replies sequence number. Packet filtered.')
                     continue
-            if echo_reply.header['type'] == IcmpType.ECHO_REPLY:
+            if echo_reply.type == IcmpType.ECHO_REPLY:
                 return {
                     'addr': ip.src_addr,
                     'size': ip.payload_size,
