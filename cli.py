@@ -2,7 +2,16 @@
 # encoding: utf-8
 
 import argparse
+import logging
 import ping as pinglib
+
+class StderrHandler(logging.StreamHandler):
+    def __init__(self):
+        super().__init__()
+        self.setFormatter(logging.Formatter('[%(process)d] %(message)s'))
+
+logger = logging.getLogger('ping').getChild('cli')
+logger.addHandler(StderrHandler())
 
 class Option(object):
     def __init__(self):
@@ -17,14 +26,16 @@ class Option(object):
         parser.add_argument('-s', '--size', dest='size', metavar='SIZE', type=int, default=56, help='The ICMP packet payload size in bytes. Default is %(default)s.')
         parser.add_argument('-D', '--debug', action='store_true', dest='debug', help='Turn on DEBUG mode.')
         parser.add_argument('-E', '--exceptions', action='store_true', dest='exceptions', help='Turn on EXCEPTIONS mode.')
-        parser.add_argument(dest='dest_addr', metavar='DEST_ADDR', nargs='*', default=('localhost', '127.0.0.1'), help='The destination address, can be an IP address or a domain name. Ex. 192.168.1.1/example.com.')
+        parser.add_argument(dest='dest_addr', metavar='DEST_ADDR', nargs='*', default=['localhost', '127.0.0.1'], help='The destination address, can be an IP address or a domain name. Ex. 192.168.1.1/example.com.')
         self.args = parser.parse_args()
 
 def main():
     option = Option()
-    print(option.args)
+    if option.args.debug:
+        logging.getLogger('ping').setLevel(logging.DEBUG)
+        logger.debug(option.args)
     for addr in option.args.dest_addr:
-        print(pinglib.ping(addr, times=option.args.count, interval=option.args.interval, ttl=option.args.ttl))
+        print(pinglib.ping(addr, times=option.args.count, interval=option.args.interval, ttl=option.args.ttl, size=option.args.size))
 
 if __name__ == '__main__':
     main()
