@@ -59,7 +59,7 @@ class PingError(Exception): pass
 class HostUnknown(PingError):
     def __init__(self, message='Cannot resolve: Unknown host.', addr=None):
         self.addr = addr
-        self.message = messsage
+        self.message = message
         if self.addr is not None:
             message += ' (Host="{}")'.format(self.addr)
         super().__init__(self.message)
