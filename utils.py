@@ -20,6 +20,9 @@ class RoundTripTime(object):
     def __format__(self, __format_spec):
         return format(self.value, __format_spec)
     
+    def __pos__(self):
+        return RoundTripTime(+self.value)
+
     def __neg__(self):
         return RoundTripTime(-self.value)
 
