@@ -2,14 +2,23 @@
 # encoding: utf-8
 
 class RoundTripTime(object):
-    def __init__(self, milliseconds):
-        self.value = milliseconds
+    def __init__(self, milliseconds=None, seconds=None, microseconds=None):
+        if milliseconds is not None:
+            self.value = milliseconds
+        elif seconds is not None:
+            self.value = seconds * 1000.0
+        elif microseconds is not None:
+            self.value = microseconds / 1000.0
+        else:
+            raise ValueError()
 
     def __str__(self):
-        return '{:f}'.format(self.value)
+        if self.value < 1.0:
+            return '<1ms'
+        return '{:.1f}ms'.format(self.value)
         
     def __format__(self, __format_spec):
-        return __format_spec.format(self.value)
+        return format(self.value, __format_spec)
     
     def __neg__(self):
         return RoundTripTime(-self.value)
@@ -31,6 +40,24 @@ class RoundTripTime(object):
         if isinstance(other, (int, float)):
             return RoundTripTime(self.value * other)
         raise TypeError()
+
+    def __matmul__(self, other):
+        raise NotImplemented()
+
+    def __truediv__(self, other):
+        raise NotImplemented()
+
+    def __floordiv__(self, other):
+        raise NotImplemented()
+
+    def __mod__(self, other):
+        raise NotImplemented()
+
+    def __divmod__(self, other):
+        raise NotImplemented()
+
+    def __pow__(self, other, modulo=None):
+        raise NotImplemented()
     
     def __eq__(self, other):
         if isinstance(other, (int, float)):
@@ -73,3 +100,14 @@ class RoundTripTime(object):
     def microseconds(self):
         return self.value * 1000.0
     ns = microseconds
+
+def main():
+    rtt = RoundTripTime(microseconds=1000.0)
+    print('{:f}'.format(rtt))
+    print(rtt)
+    print(rtt.seconds)
+    print(rtt + RoundTripTime(seconds=1.0))
+    print(RoundTripTime(microseconds=900.0))
+
+if __name__ == '__main__':
+    main()
