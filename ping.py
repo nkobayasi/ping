@@ -294,7 +294,7 @@ class Ping(object):
             selected = select.select([self.socket, ], [], [], select_timeout)
             if selected[0] == []: # The empty that first element of selected result means timed out
                 raise PingTimeout(addr=addr, timeout=self.timeout)
-            raw_packet, addr = self.socket.recvfrom(1500)
+            raw_packet, _ = self.socket.recvfrom(1024)
             ip = IpPacket.factory(raw_packet)
             echo_reply = EchoReply.factory(ip.payload)
             if echo_reply.header['type'] == IcmpType.TIME_EXCEEDED:
