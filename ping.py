@@ -275,10 +275,10 @@ class Ping(object):
         
         self.seq += 1
         # Open and prepare socket
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
+        _socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
         if self.ttl:
-            try_setsockopt(self.socket, socket.IPPROTO_IP, socket.IP_TTL, self.ttl)
-            try_setsockopt(self.socket, socket.SOL_IP, socket.IP_TTL, self.ttl)
+            try_setsockopt(_socket, socket.IPPROTO_IP, socket.IP_TTL, self.ttl)
+            try_setsockopt(_socket, socket.SOL_IP, socket.IP_TTL, self.ttl)
         # Resolve address
         try:
             addr = socket.gethostbyname(addr)
@@ -286,15 +286,15 @@ class Ping(object):
             raise HostUnknown(addr=addr) from e
         # ICMP request
         echo_request = EchoRequest(seq=self.seq, size=self.size)
-        self.socket.sendto(echo_request.raw_packet, (addr, 0))
+        _socket.sendto(echo_request.raw_packet, (addr, 0))
         # ICMP response
         limited_unixtime = time.time() +  self.timeout
         while True:
             select_timeout = lower_limit_zero(limited_unixtime - time.time())
-            selected = select.select([self.socket, ], [], [], select_timeout)
+            selected = select.select([_socket, ], [], [], select_timeout)
             if selected[0] == []: # The empty that first element of selected result means timed out
                 raise PingTimeout(addr=addr, timeout=self.timeout)
-            raw_packet, _ = self.socket.recvfrom(1024)
+            raw_packet, _ = _socket.recvfrom(1024)
             ip = IpPacket.factory(raw_packet)
             echo_reply = EchoReply.factory(ip.payload)
             if echo_reply.header['type'] == IcmpType.TIME_EXCEEDED:
