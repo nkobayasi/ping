@@ -62,29 +62,24 @@ class RoundTripTime(object):
     def __pow__(self, other, modulo=None):
         raise NotImplemented()
     
-    def __eq__(self, other):
+    def __cmp__(self, other):
         if isinstance(other, (int, float)):
-            return self.value == other
+            return self.value - other
         elif isinstance(other, (RoundTripTime, )):
-            return self.value == other.value
+            return self.value - other.value
         raise TypeError()
+    
+    def __eq__(self, other):
+        return self.__cmp__(other) == 0
 
     def __lt__(self, other):
-        if isinstance(other, (int, float)):
-            return self.value < other
-        elif isinstance(other, (RoundTripTime, )):
-            return self.value < other.value
-        raise TypeError()
+        return self.__cmp__(other) < 0
 
     def __le__(self, other):
         return self < other or self == other
 
     def __gt__(self, other):
-        if isinstance(other, (int, float)):
-            return self.value > other
-        elif isinstance(other, (RoundTripTime, )):
-            return self.value > other.value
-        raise TypeError()
+        return self.__cmp__(other) > 0
 
     def __ge__(self, other):
         return self > other or self == other
@@ -103,6 +98,29 @@ class RoundTripTime(object):
     def microseconds(self):
         return self.value * 1000.0
     ns = microseconds
+
+def covariance(x, y):
+    _ = []
+    x_mean = statistics.mean(x)
+    y_mean = statistics.mean(y)
+    for xi, yi in zip(x, y):
+        _.append((xi - x_mean) * (yi - y_mean))
+    return statistics.mean(_)
+
+def least_squares_method(x, y):
+    A = covariance(x, y) / statistics.variance(x)
+    B = statistics.mean(y) - A * statistics.mean(x)
+    return A, B
+
+def r2_score(x, y, A, B):
+    p = 0
+    t = 0
+    y_mean = statistics.mean(y)
+    for xi, yi in zip(x, y):
+        ypi = A * xi + B
+        p += (yi - ypi) ** 2
+        t += (yi - y_mean) ** 2
+    return 1 - p / t
 
 def main():
     rtt = RoundTripTime(microseconds=1000.0)
