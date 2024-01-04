@@ -78,6 +78,10 @@ class TimeElapsed(object):
     def seconds(self):
         return self.measure()
 
+    @property
+    def milliseconds(self):
+        return self.measure() * 1000.0
+
 class Pings(object):
     class Static(object):
         def __init__(self, pings):
@@ -101,10 +105,6 @@ class Pings(object):
         @property
         def standard_deviation(self):
             return statistics.stdev(map(lambda _: _.roundtrip, self.pings.succeed))
-        
-        @property
-        def milliseconds(self):
-            return self.pings.elapsed.seconds * 1000.0
         
     def __init__(self):
         self.records = []
@@ -162,7 +162,7 @@ def main():
         time.sleep(1.0)
     print(pings)
     print(pings.static)
-    print('{:.0f}ms'.format(pings.static.milliseconds))
+    print('{:.0f}ms'.format(pings.elapsed.milliseconds))
 
 if __name__ == '__main__':
     main()
