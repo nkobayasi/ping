@@ -30,48 +30,69 @@ class FileHandler(logging.handlers.WatchedFileHandler):
         super().__init__(filename, encoding='utf-8')
         self.setFormatter(logging.Formatter('[%(asctime)s] [%(process)d] %(levelname)s: %(name)s.%(funcName)s(): %(message)s'))
 
-class PingResult(object):
-    def __init__(self, addr, roundtrip, size, ttl):
+class PingRecord(object):
+    def __init__(self, addr, roundtrip, size, ttl, seq):
         self.addr = addr
         self.roundtrip = roundtrip
         self.size = size
         self.ttl = ttl
+        self.seq = seq
 
     @classmethod
-    def factory(cls, ip: pinglib.IpPacket):
+    def from_result(cls, result):
+        self = cls(
+            addr=result['addr'],
+            roundtrip=result['roundtrip'],
+            size=result['size'],
+            ttl=result['ttl'],
+            seq=result['seq'])
+        return self
+
+    @classmethod
+    def from_ip(cls, ip: pinglib.IpPacket):
         echo_reply = pinglib.EchoReply.factory(ip.payload)
         self = cls(
             addr=ip.src_addr,
             roundtrip=(time.time() - echo_reply.epoch) * 1000.0,
             size=ip.payload_size,
-            ttl=ip.ttl)
+            ttl=ip.ttl,
+            seq=echo_reply.seq)
         return self
 
 class Pings(object):
-    pass
-
-class PingsStatic(object):
-    def __init__(self, results):
-        self.results = results
-
-    def __str__(self):
-        return '{!s}, min: {:.2f}ms, max: {:.2f}ms, avg: {:.2f}ms, mdev: {:.2f}ms'.format(self.results, self.min, self.max, self.average, self.standard_deviation)
+    class Static(object):
+        def __init__(self, pings):
+            self.pings = pings
+    
+        def __str__(self):
+            return ' min: {:.2f}ms, max: {:.2f}ms, avg: {:.2f}ms, mdev: {:.2f}ms'.format(self.min, self.max, self.average, self.standard_deviation)
+            
+        @property
+        def min(self):
+            return min(map(lambda _: _.roundtrip, self.pings.records))
+    
+        @property
+        def max(self):
+            return max(map(lambda _: _.roundtrip, self.pings.records))
+    
+        @property
+        def average(self):
+            return statistics.mean(map(lambda _: _.roundtrip, self.pings.records))
+        
+        @property
+        def standard_deviation(self):
+            return statistics.stdev(map(lambda _: _.roundtrip, self.pings.records))
+        
+    def __init__(self):
+        self.records = []
         
     @property
-    def min(self):
-        return min(map(lambda _: _['roundtrip'], self.results))
-
-    @property
-    def max(self):
-        return max(map(lambda _: _['roundtrip'], self.results))
-
-    @property
-    def average(self):
-        return statistics.mean(map(lambda _: _['roundtrip'], self.results))
+    def static(self):
+        return self.Static(self)
     
-    @property
-    def standard_deviation(self):
-        return statistics.stdev(map(lambda _: _['roundtrip'], self.results))
+    def add(self, record):
+        self.records.append(record)
+    append=add
 
 class PingAnalytics(object):
     def __init__(self):
@@ -198,7 +219,7 @@ def main():
             analytics.record(ping.execute('1.1.1.1'))
             analytics.record(ping.execute('8.8.8.8'))
             analytics.record(ping.execute('google.com'))
-        except pinglib.PingTimeout as e:
+        except (pinglib.PingTimeout, pinglib.HostUnknown) as e:
             analytics.failure({'addr': e.addr, 'error': e.message})
         except pinglib.PingError as e:
             analytics.failure({'addr': e.ip.src_addr.compressed, 'error': e.message})
