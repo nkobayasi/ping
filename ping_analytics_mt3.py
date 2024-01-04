@@ -11,8 +11,29 @@ import threading
 import multiprocessing
 import ping as pinglib
 
-logger = logging.getLogger('ping')
-#logger.setLevel(logging.DEBUG)
+class StderrHandler(logging.StreamHandler):
+    def __init__(self):
+        super().__init__()
+        self.setFormatter(logging.Formatter('[%(process)d] %(message)s'))
+
+class StdoutHandler(logging.StreamHandler):
+    def __init__(self):
+        super().__init__(stream=sys.stdout)
+        self.setFormatter(logging.Formatter('%(message)s'))
+
+class SyslogHandler(logging.handlers.SysLogHandler):
+    def __init__(self, filename):
+        super().__init__()
+        self.setFormatter(logging.Formatter('%(levelname)s: %(name)s.%(funcName)s(): %(message)s'))
+
+class FileHandler(logging.handlers.WatchedFileHandler):
+    def __init__(self, filename):
+        super().__init__(filename, encoding='utf-8')
+        self.setFormatter(logging.Formatter('[%(asctime)s] [%(process)d] %(levelname)s: %(name)s.%(funcName)s(): %(message)s'))
+
+logger = logging.getLogger('ping').getChild('analytics')
+logger.addHandler(StderrHandler())
+logger.setLevel(logging.DEBUG)
 
 class PingAnalytics(object):
     def __init__(self):
@@ -60,33 +81,35 @@ class PingAnalytics(object):
         self.db.commit();
         
 class PingMT(threading.Thread):
-    def __init__(self, resultq, target):
-        super().__init__(daemon=True)
+    def __init__(self, resultq, target, terminated):
+        super().__init__()
         self.target = target
         self.resultq = resultq
+        self.terminated = terminated
         
     def run(self):
         ping = pinglib.Ping()
-        while True:
+        while not self.terminated.wait(timeout=1.0):
             try:
                 self.resultq.put(ping.execute(self.target))
             except (pinglib.PingTimeout, pinglib.HostUnknown) as e:
                 self.resultq.put({'addr': e.addr, 'error': e.message})
             except pinglib.PingError as e:
                 self.resultq.put({'addr': e.ip.src_addr.compressed, 'error': e.message})
-            time.sleep(1.0)
             
 def main():
+    terminated = threading.Event()
     resultq = multiprocessing.Queue()
-    for target in ['127.0.0.1', '192.168.12.1', '192.168.0.1', '1.1.1.1', '8.8.8.8', 'google.com']:
-        PingMT(resultq=resultq, target=target).start()
+    for target in ['127.0.0.1', '192.168.12.1', '192.168.0.1', '1.1.1.1', '1.0.0.1', '8.8.8.8', '8.8.4.4', 'google.com']:
+        PingMT(resultq=resultq, target=target, terminated=terminated).start()
     #
     analytics = PingAnalytics()
     try:
         while True:
             analytics.record(resultq.get())
     except KeyboardInterrupt:
-        sys.exit()
+        terminated.set()
+        #sys.exit()
 
 if __name__ == '__main__':
     main()
