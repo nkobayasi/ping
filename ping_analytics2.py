@@ -111,7 +111,7 @@ class Pings(object):
         self.elapsed = TimeElapsed()
         
     def __str__(self):
-        return '{} packets transmitted, {} received, {:.1f}% packet loss'.format(self.transmitted, self.recieved, self.loss*100.0/self.transmitted)
+        return '{} packets transmitted, {} received, {:.1f}% packet loss'.format(self.transmitted, self.recieved, self.loss_ratio)
         
     @property
     def transmitted(self):
@@ -129,6 +129,10 @@ class Pings(object):
     @property
     def loss(self):
         return self.transmitted - self.recieved
+
+    @property
+    def loss_ratio(self):
+        return self.loss * 100.0 / self.transmitted
         
     @property
     def static(self):
