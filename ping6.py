@@ -38,6 +38,14 @@ def checksum(value):
 
 class Ping6Error(Exception): pass
 
+class HostUnknown(Ping6Error):
+    def __init__(self, message='Cannot resolve: Unknown host.', addr=None):
+        self.addr = addr
+        self.message = message
+        if self.addr is not None:
+            message += ' (Host="{}")'.format(self.addr)
+        super().__init__(self.message)
+        
 class Ping6Timeout(Ping6Error):
     def __init__(self, message='Request timeout for ICMP packet.', addr=None, timeout=None):
         self.addr = addr
@@ -191,7 +199,10 @@ class Ping6(object):
 
         self.seq += 1
         echo_request = EchoRequest(seq=self.seq, size=self.size)
-        family, type, proto, canonname, sockaddr = socket.getaddrinfo(addr, None, family=socket.AF_INET6)[0]
+        try:
+            family, type, proto, canonname, sockaddr = socket.getaddrinfo(addr, None, family=socket.AF_INET6)[0]
+        except socket.gaierror as e:
+            raise HostUnknown(addr=addr) from e
         _socket = socket.socket(socket.AF_INET6, socket.SOCK_RAW, socket.getprotobyname("ipv6-icmp"))
         _socket.sendto(echo_request.raw_packet, sockaddr)
         
