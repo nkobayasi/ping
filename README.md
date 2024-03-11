@@ -1,6 +1,6 @@
 # Ping
 
-Base on [ping3](https://github.com/kyan001/ping3) project. Thnak a lot.
+Base on [ping3](https://github.com/kyan001/ping3) project. I appreciate these projects and thanks a lot.
 Update for modern python.
 
 ## Requirements
