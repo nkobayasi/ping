@@ -89,9 +89,9 @@ class PingMT(threading.Thread):
         while not self.terminated.wait(timeout=1.0):
             try:
                 self.resultq.put(ping.execute(self.target))
-            except (pinglib.PingTimeout, pinglib.HostUnknown) as e:
+            except (pinglib.Ping6Timeout, pinglib.HostUnknown) as e:
                 self.resultq.put({'addr': e.addr, 'error': e.message})
-            except pinglib.PingError as e:
+            except pinglib.Ping6Error as e:
                 self.resultq.put({'addr': e.ip.src_addr.compressed, 'error': e.message})
             
 def main():

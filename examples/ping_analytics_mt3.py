@@ -10,6 +10,7 @@ import logging
 import logging.handlers
 import threading
 import multiprocessing
+import traceback
 import ping as pinglib
 
 class StderrHandler(logging.StreamHandler):
@@ -23,7 +24,7 @@ class StdoutHandler(logging.StreamHandler):
         self.setFormatter(logging.Formatter('%(message)s'))
 
 class SyslogHandler(logging.handlers.SysLogHandler):
-    def __init__(self, filename):
+    def __init__(self):
         super().__init__()
         self.setFormatter(logging.Formatter('%(levelname)s: %(name)s.%(funcName)s(): %(message)s'))
 
@@ -51,13 +52,14 @@ class PingAnalytics(object):
                 epoch datetime)""")
         self.db.commit()
 
-    def record(self, result):
+    def record(self, results):
+        epoch, result = results
         if 'error' in result:
-            self.failure(result)
+            self.failure(epoch, result)
         else: 
-            self.success(result)
+            self.success(epoch, result)
     
-    def success(self, result):
+    def success(self, epoch, result):
         print('{addr} からの応答: バイト数 ={size} 時間 ={rtt:.1f}ms TTL={ttl}'.format(
             addr=result['addr'].compressed,
             size=result['size'],
@@ -69,16 +71,16 @@ class PingAnalytics(object):
             result['size'],
             result['roundtrip'],
             result['ttl'],
-            int(time.time()), ))
+            int(epoch), ))
         self.db.commit();
 
-    def failure(self, result):
+    def failure(self, epoch, result):
         print('{addr} からの応答: {err}'.format(addr=result['addr'], err=result['error']))
         cursor = self.db.cursor()
         cursor.execute("""INSERT INTO histories(error, addr, error_string, epoch) VALUES(true, ?, ?, ?)""", (
             result['addr'],
             result['error'],
-            int(time.time()), ))
+            int(epoch), ))
         self.db.commit();
         
 class PingMT(threading.Thread):
@@ -91,17 +93,20 @@ class PingMT(threading.Thread):
     def run(self):
         ping = pinglib.Ping()
         while not self.terminated.wait(timeout=1.0):
+            epoch = time.time()
             try:
-                self.resultq.put(ping.execute(self.target))
+                self.resultq.put((epoch, ping.execute(self.target)))
             except (pinglib.PingTimeout, pinglib.HostUnknown) as e:
-                self.resultq.put({'addr': e.addr, 'error': e.message})
+                self.resultq.put((epoch, {'addr': e.addr, 'error': e.message}))
             except pinglib.PingError as e:
-                self.resultq.put({'addr': e.ip.src_addr.compressed, 'error': e.message})
+                self.resultq.put((epoch, {'addr': e.ip.src_addr.compressed, 'error': e.message}))
+            except Exception as e:
+                logger.error(traceback.format_exception(e))
             
 def main():
     terminated = threading.Event()
     resultq = multiprocessing.Queue()
-    for target in ['127.0.0.1', '192.168.12.1', '192.168.0.1', '1.1.1.1', '1.0.0.1', '8.8.8.8', '8.8.4.4', 'google.com']:
+    for target in ['127.0.0.1', '192.168.12.1', '192.168.0.1', '1.1.1.1', '1.0.0.1', '8.8.8.8', '8.8.4.4', 'www.google.com', 'www.youtube.com']:
         PingMT(resultq=resultq, target=target, terminated=terminated).start()
     #
     analytics = PingAnalytics()
@@ -110,7 +115,9 @@ def main():
             analytics.record(resultq.get())
     except KeyboardInterrupt:
         terminated.set()
-        #sys.exit()
+    except Exception as e:
+        terminated.set()
+        logger.error(traceback.format_exception(e))
 
 if __name__ == '__main__':
     main()
