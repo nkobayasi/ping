@@ -51,7 +51,7 @@ class FileHandler(logging.handlers.WatchedFileHandler):
         super().__init__(filename, encoding='utf-8')
         self.setFormatter(logging.Formatter('[%(asctime)s] [%(process)d] %(levelname)s: %(name)s.%(funcName)s(): %(message)s'))
 
-logger = logging.getLogger('ping').getChild(__name__)
+logger = logging.getLogger('ping')
 logger.addHandler(StderrHandler())
 
 class PingError(Exception): pass
@@ -194,7 +194,9 @@ class EchoRequest(IcmpPacket):
         else:
             thread_id = threading.currentThread().ident
         process_id = os.getpid()
-        return zlib.crc32("{}{}".format(process_id, thread_id).encode('ascii')) & 0xffff
+        logger.debug('process_id=0x{:08x}, thread_id=0x{:08x}'.format(process_id, thread_id))
+        return thread_id & 0xffff
+        return zlib.crc32('{:04x}{:04x}'.format(process_id, thread_id).encode('ascii')) & 0xffff
 
     @property
     def seq(self):
@@ -275,54 +277,54 @@ class Ping(object):
         
         self.seq += 1
         # Open and prepare socket
-        _socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
-        if self.ttl:
-            try_setsockopt(_socket, socket.IPPROTO_IP, socket.IP_TTL, self.ttl)
-            try_setsockopt(_socket, socket.SOL_IP, socket.IP_TTL, self.ttl)
-        # Resolve address
-        try:
-            addr = socket.gethostbyname(addr)
-        except socket.gaierror as e:
-            raise HostUnknown(addr=addr) from e
-        # ICMP request
-        echo_request = EchoRequest(seq=self.seq, size=self.size)
-        _socket.sendto(echo_request.raw_packet, (addr, 0))
-        # ICMP response
-        limited_unixtime = time.time() +  self.timeout
-        while True:
-            select_timeout = lower_limit_zero(limited_unixtime - time.time())
-            selected = select.select([_socket, ], [], [], select_timeout)
-            if selected[0] == []: # The empty that first element of selected result means timed out
-                raise PingTimeout(addr=addr, timeout=self.timeout)
-            raw_packet, _ = _socket.recvfrom(1024)
-            ip = IpPacket.factory(raw_packet)
-            echo_reply = EchoReply.factory(ip.payload)
-            if echo_reply.header['type'] == IcmpType.TIME_EXCEEDED:
-                if echo_reply.header['code'] == IcmpTimeExceededCode.TTL_EXPIRED:
-                    raise TimeToLiveExpired(ip=ip)
-                raise TimeExceeded()
-            if echo_reply.header['type'] == IcmpType.DESTINATION_UNREACHABLE:
-                if echo_reply.header['code'] == IcmpDestinationUnreachableCode.DESTINATION_HOST_UNREACHABLE:
-                    raise DestinationHostUnreachable(ip=ip)
-                raise DestinationUnreachable(ip=ip)
-            if echo_reply.header['id']:
-                if echo_reply.type == IcmpType.ECHO_REQUEST:
-                    logger.debug('Received ICMP type, "ECHO_REQUEST". Packet filtered.')
-                    continue
-                if echo_reply.id != echo_request.id:
-                    logger.debug('Mismatch ICMP echos and replies identifier. Packet filtered.')
-                    continue
-                if echo_reply.seq != echo_request.seq:
-                    logger.debug('Mismatch ICMP echos and replies sequence number. Packet filtered.')
-                    continue
-            if echo_reply.type == IcmpType.ECHO_REPLY:
-                return {
-                    'addr': ip.src_addr,
-                    'size': ip.payload_size,
-                    'seq': echo_reply.seq,
-                    'roundtrip': (time.time() - echo_reply.timestamp) * 1000.0, 
-                    'ttl': ip.ttl}
-            logger.debug('Uncaught ICMP packet: {!s}'.format(echo_reply))
+        with socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP) as _socket:
+            if self.ttl:
+                try_setsockopt(_socket, socket.IPPROTO_IP, socket.IP_TTL, self.ttl)
+                try_setsockopt(_socket, socket.SOL_IP, socket.IP_TTL, self.ttl)
+            # Resolve address
+            try:
+                addr = socket.gethostbyname(addr)
+            except socket.gaierror as e:
+                raise HostUnknown(addr=addr) from e
+            # ICMP request
+            echo_request = EchoRequest(seq=self.seq, size=self.size)
+            _socket.sendto(echo_request.raw_packet, (addr, 0))
+            # ICMP response
+            limited_unixtime = time.time() +  self.timeout
+            while True:
+                select_timeout = lower_limit_zero(limited_unixtime - time.time())
+                selected = select.select([_socket, ], [], [], select_timeout)
+                if selected[0] == []: # The empty that first element of selected result means timed out
+                    raise PingTimeout(addr=addr, timeout=self.timeout)
+                raw_packet, _ = _socket.recvfrom(1024)
+                ip = IpPacket.factory(raw_packet)
+                echo_reply = EchoReply.factory(ip.payload)
+                if echo_reply.header['type'] == IcmpType.TIME_EXCEEDED:
+                    if echo_reply.header['code'] == IcmpTimeExceededCode.TTL_EXPIRED:
+                        raise TimeToLiveExpired(ip=ip)
+                    raise TimeExceeded()
+                if echo_reply.header['type'] == IcmpType.DESTINATION_UNREACHABLE:
+                    if echo_reply.header['code'] == IcmpDestinationUnreachableCode.DESTINATION_HOST_UNREACHABLE:
+                        raise DestinationHostUnreachable(ip=ip)
+                    raise DestinationUnreachable(ip=ip)
+                if echo_reply.header['id']:
+                    if echo_reply.type == IcmpType.ECHO_REQUEST:
+                        logger.debug('Received ICMP type, "ECHO_REQUEST". Packet filtered.')
+                        continue
+                    if echo_reply.id != echo_request.id:
+                        logger.debug('Mismatch ICMP echos and replies identifier. Packet filtered.')
+                        continue
+                    if echo_reply.seq != echo_request.seq:
+                        logger.debug('Mismatch ICMP echos and replies sequence number. Packet filtered.')
+                        continue
+                if echo_reply.type == IcmpType.ECHO_REPLY:
+                    return {
+                        'addr': ip.src_addr,
+                        'size': ip.payload_size,
+                        'seq': echo_reply.seq,
+                        'roundtrip': (time.time() - echo_reply.timestamp) * 1000.0, 
+                        'ttl': ip.ttl}
+                logger.debug('Uncaught ICMP packet: {!s}'.format(echo_reply))
 
 def ping(addr, times=1, interval=1.0, ttl=None, size=56, timeout=10):
     results = []
