@@ -38,26 +38,34 @@ logger.setLevel(logging.DEBUG)
 
 class PingAnalytics(object):
     def __init__(self):
-        self.db = sqlite3.connect('ping_analytics.db')
+        self.db = sqlite3.connect('ping6_analytics.db')
         cursor = self.db.cursor()
+        cursor.execute("PRAGMA journal_mode = WAL")
+        cursor.execute("PRAGMA synchronous = normal")
+        cursor.execute("PRAGMA journal_size_limit = 6144000")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS histories(
                 error boolean,
                 error_string text,
-                addr varchar(15),
+                addr varchar(40),
                 size integer,
                 roundtrip float,
                 ttl integer,
                 epoch datetime)""")
+        cursor.execute("CREATE INDEX IF NOT EXISTS histories_error_idx ON histories(error)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS histories_addr_idx ON histories(addr)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS histories_epoch_idx ON histories(epoch)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS histories_epoch_addr_idx ON histories(epoch, addr)")
         self.db.commit()
 
-    def record(self, result):
+    def record(self, results):
+        epoch, result = results
         if 'error' in result:
-            self.failure(result)
+            self.failure(epoch, result)
         else: 
-            self.success(result)
+            self.success(epoch, result)
     
-    def success(self, result):
+    def success(self, epoch, result):
         print('{addr} からの応答: 時間 ={rtt:.1f}ms'.format(
             addr=result['addr'].compressed,
             rtt=result['roundtrip'], ))
@@ -65,17 +73,17 @@ class PingAnalytics(object):
         cursor.execute("""INSERT INTO histories(error, addr, roundtrip, epoch) VALUES(false, ?, ?, ?)""", (
             result['addr'].compressed,
             result['roundtrip'],
-            int(time.time()), ))
-        self.db.commit();
+            int(epoch), ))
+        self.db.commit()
 
-    def failure(self, result):
+    def failure(self, epoch, result):
         print('{addr} からの応答: {err}'.format(addr=result['addr'], err=result['error']))
         cursor = self.db.cursor()
         cursor.execute("""INSERT INTO histories(error, addr, error_string, epoch) VALUES(true, ?, ?, ?)""", (
             result['addr'],
             result['error'],
-            int(time.time()), ))
-        self.db.commit();
+            int(epoch), ))
+        self.db.commit()
         
 class PingMT(threading.Thread):
     def __init__(self, resultq, target, terminated):
@@ -87,17 +95,18 @@ class PingMT(threading.Thread):
     def run(self):
         ping = pinglib.Ping6()
         while not self.terminated.wait(timeout=1.0):
+            epoch = time.time()
             try:
-                self.resultq.put(ping.execute(self.target))
+                self.resultq.put((epoch, ping.execute(self.target)))
             except (pinglib.Ping6Timeout, pinglib.HostUnknown) as e:
-                self.resultq.put({'addr': e.addr, 'error': e.message})
+                self.resultq.put((epoch, {'addr': e.addr, 'error': e.message}))
             except pinglib.Ping6Error as e:
-                self.resultq.put({'addr': e.ip.src_addr.compressed, 'error': e.message})
+                self.resultq.put((epoch, {'addr': e.ip.src_addr.compressed, 'error': e.message}))
             
 def main():
     terminated = threading.Event()
     resultq = multiprocessing.Queue()
-    for target in ['::1', 'google.com']:
+    for target in ['::1', 'www.google.com', 'www.youtube.com']:
         PingMT(resultq=resultq, target=target, terminated=terminated).start()
     #
     analytics = PingAnalytics()
