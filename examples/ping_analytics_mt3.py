@@ -41,6 +41,9 @@ class PingAnalytics(object):
     def __init__(self):
         self.db = sqlite3.connect('ping_analytics.db')
         cursor = self.db.cursor()
+        cursor.execute("PRAGMA journal_mode = WAL")
+        cursor.execute("PRAGMA synchronous = normal")
+        cursor.execute("PRAGMA journal_size_limit = 6144000")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS histories(
                 error boolean,
@@ -50,6 +53,10 @@ class PingAnalytics(object):
                 roundtrip float,
                 ttl integer,
                 epoch datetime)""")
+        cursor.execute("CREATE INDEX IF NOT EXISTS histories_error_idx ON histories(error)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS histories_addr_idx ON histories(addr)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS histories_epoch_idx ON histories(epoch)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS histories_epoch_addr_idx ON histories(epoch, addr)")
         self.db.commit()
 
     def record(self, results):
@@ -72,7 +79,7 @@ class PingAnalytics(object):
             result['roundtrip'],
             result['ttl'],
             int(epoch), ))
-        self.db.commit();
+        self.db.commit()
 
     def failure(self, epoch, result):
         print('{addr} からの応答: {err}'.format(addr=result['addr'], err=result['error']))
@@ -81,7 +88,7 @@ class PingAnalytics(object):
             result['addr'],
             result['error'],
             int(epoch), ))
-        self.db.commit();
+        self.db.commit()
         
 class PingMT(threading.Thread):
     def __init__(self, resultq, target, terminated):
@@ -106,7 +113,8 @@ class PingMT(threading.Thread):
 def main():
     terminated = threading.Event()
     resultq = multiprocessing.Queue()
-    for target in ['127.0.0.1', '192.168.12.1', '192.168.0.1', '1.1.1.1', '1.0.0.1', '8.8.8.8', '8.8.4.4', 'www.google.com', 'www.youtube.com']:
+    #for target in ['127.0.0.1', '192.168.0.1', '1.1.1.1', '1.0.0.1', '8.8.8.8', '8.8.4.4', 'www.google.com', 'www.youtube.com']:
+    for target in ['127.0.0.1', '8.8.8.8']:
         PingMT(resultq=resultq, target=target, terminated=terminated).start()
     #
     analytics = PingAnalytics()
