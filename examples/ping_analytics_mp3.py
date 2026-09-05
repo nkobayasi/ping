@@ -79,7 +79,7 @@ class PingAnalytics(object):
             result['roundtrip'],
             result['ttl'],
             int(epoch), ))
-        self.db.commit()
+        self.db.commit();
 
     def failure(self, epoch, result):
         print('{addr} からの応答: {err}'.format(addr=result['addr'], err=result['error']))
@@ -88,9 +88,9 @@ class PingAnalytics(object):
             result['addr'],
             result['error'],
             int(epoch), ))
-        self.db.commit()
+        self.db.commit();
         
-class PingMT(threading.Thread):
+class PingMT(multiprocessing.Process):
     def __init__(self, resultq, target, terminated):
         super().__init__()
         self.target = target
@@ -111,10 +111,10 @@ class PingMT(threading.Thread):
                 logger.error(traceback.format_exception(e))
             
 def main():
-    terminated = threading.Event()
+    terminated = multiprocessing.Event()
     resultq = multiprocessing.Queue()
-    #for target in ['127.0.0.1', '192.168.0.1', '1.1.1.1', '1.0.0.1', '8.8.8.8', '8.8.4.4', 'www.google.com', 'www.youtube.com']:
-    for target in ['127.0.0.1', '8.8.8.8']:
+    for target in ['127.0.0.1', '192.168.0.1', '1.1.1.1', '1.0.0.1', '8.8.8.8', '8.8.4.4', 'www.google.com', 'www.youtube.com']:
+    #for target in ['127.0.0.1', '192.168.0.1', '8.8.8.8']:
         PingMT(resultq=resultq, target=target, terminated=terminated).start()
     #
     analytics = PingAnalytics()

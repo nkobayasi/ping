@@ -100,7 +100,7 @@ class Ip6Packet(object):
         return self.raw[self.header_size:]
 
 class Icmp6Packet(object):
-    HEADER_FORMAT = "!BbHHh"
+    HEADER_FORMAT = "!BBHHH"
     TIME_FORMAT = "!d"
     
     @classmethod
@@ -203,33 +203,35 @@ class Ping6(object):
             family, type, proto, canonname, sockaddr = socket.getaddrinfo(addr, None, family=socket.AF_INET6)[0]
         except socket.gaierror as e:
             raise HostUnknown(addr=addr) from e
-        _socket = socket.socket(socket.AF_INET6, socket.SOCK_RAW, socket.getprotobyname("ipv6-icmp"))
-        _socket.sendto(echo_request.raw_packet, sockaddr)
         
-        limited_unixtime = time.time() +  self.timeout
-        while True:
-            select_timeout = lower_limit_zero(limited_unixtime - time.time())
-            selected = select.select([_socket, ], [], [], select_timeout)
-            if selected[0] == []: # The empty that first element of selected result means timed out
-                raise Ping6Timeout(addr=addr, timeout=self.timeout)
-            raw_packet, _ = _socket.recvfrom(2048)
-            #ip = Ip6Packet.factory(raw_packet)
-            echo_reply = EchoReply.factory(raw_packet)
-            if echo_reply.id:
-                if echo_reply.type == Icmp6Type.ECHO_REQUEST:
-                    #logger.debug('Received ICMP type, "ECHO_REQUEST". Packet filtered.')
-                    continue
-                if echo_reply.id != echo_request.id:
-                    #logger.debug('Mismatch ICMP echos and replies identifier. Packet filtered.')
-                    continue
-                if echo_reply.seq != echo_request.seq:
-                    #logger.debug('Mismatch ICMP echos and replies sequence number. Packet filtered.')
-                    continue
-            if echo_reply.type == Icmp6Type.ECHO_REPLY:
-                return {
-                    'addr': ipaddress.ip_address(sockaddr[0]),
-                    'seq': echo_reply.seq,
-                    'roundtrip': (time.time() - echo_reply.timestamp) * 1000.0}
+        with socket.socket(socket.AF_INET6, socket.SOCK_RAW, socket.getprotobyname("ipv6-icmp")) as _socket:
+            # send
+            _socket.sendto(echo_request.raw_packet, sockaddr)
+            # recieve
+            limited_unixtime = time.time() +  self.timeout
+            while True:
+                select_timeout = lower_limit_zero(limited_unixtime - time.time())
+                selected = select.select([_socket, ], [], [], select_timeout)
+                if selected[0] == []: # The empty that first element of selected result means timed out
+                    raise Ping6Timeout(addr=addr, timeout=self.timeout)
+                raw_packet, _ = _socket.recvfrom(2048)
+                #ip = Ip6Packet.factory(raw_packet)
+                echo_reply = EchoReply.factory(raw_packet)
+                if echo_reply.id:
+                    if echo_reply.type == Icmp6Type.ECHO_REQUEST:
+                        #logger.debug('Received ICMP type, "ECHO_REQUEST". Packet filtered.')
+                        continue
+                    if echo_reply.id != echo_request.id:
+                        #logger.debug('Mismatch ICMP echos and replies identifier. Packet filtered.')
+                        continue
+                    if echo_reply.seq != echo_request.seq:
+                        #logger.debug('Mismatch ICMP echos and replies sequence number. Packet filtered.')
+                        continue
+                if echo_reply.type == Icmp6Type.ECHO_REPLY:
+                    return {
+                        'addr': ipaddress.ip_address(sockaddr[0]),
+                        'seq': echo_reply.seq,
+                        'roundtrip': (time.time() - echo_reply.timestamp) * 1000.0}
 
 def ping6(addr, times=1, interval=1.0, ttl=None, size=64, timeout=10):
     results = []
