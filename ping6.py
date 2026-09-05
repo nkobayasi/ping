@@ -100,7 +100,7 @@ class Ip6Packet(object):
         return self.raw[self.header_size:]
 
 class Icmp6Packet(object):
-    HEADER_FORMAT = "!BbHHh"
+    HEADER_FORMAT = "!BBHHH"
     TIME_FORMAT = "!d"
     
     @classmethod
